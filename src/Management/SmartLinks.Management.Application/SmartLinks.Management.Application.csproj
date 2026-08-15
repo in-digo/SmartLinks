@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\SmartLinks.Management.Domain\SmartLinks.Management.Domain.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\SmartLinks.Contracts\SmartLinks.Contracts.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\SmartLinks.RuleEngine\SmartLinks.RuleEngine.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
