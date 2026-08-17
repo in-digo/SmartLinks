@@ -128,6 +128,27 @@ public sealed class SmartLinkResolverTests
         Assert.Null(result.TargetUrl);
     }
 
+    // Пропускает несовпавшее правило и выбирает следующее совпавшее по приоритету
+    [Fact]
+    public void ResolveSkipsNonMatchingRuleAndReturnsNextMatchingRule()
+    {
+        const string defaultUrl = "https://example.com/default";
+        const string expectedUrl = "https://example.com/priority-20";
+
+        var priorityTenRule = new SmartLinkRule(10, true, "https://example.com/priority-10", new StubCondition(false));
+        var priorityTwentyRule = new SmartLinkRule(20, true, expectedUrl, new StubCondition(true));
+
+        var smartLink = new SmartLinkConfiguration(true, defaultUrl, new[] { priorityTwentyRule, priorityTenRule });
+        var context = new UrlResolutionContext(new DateTimeOffset(2026, 8, 17, 12, 0, 0, TimeSpan.Zero));
+
+        var resolver = new SmartLinkResolver();
+
+        var result = resolver.Resolve(smartLink, context);
+
+        Assert.Equal(UrlResolutionStatus.Resolved, result.Status);
+        Assert.Equal(expectedUrl, result.TargetUrl);
+    }
+
     private sealed class StubCondition : ICompiledCondition
     {
         private readonly bool _result;
