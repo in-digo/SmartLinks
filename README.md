@@ -1,5 +1,7 @@
 # SmartLinks
 
+[![CI](https://github.com/in-digo/SmartLinks/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/in-digo/SmartLinks/actions/workflows/ci.yml)
+
 SmartLinks - учебный проект сервиса умных ссылок для курса «Архитектура и шаблоны проектирования».
 
 Сервис будет выбирать целевой URL короткой ссылки в зависимости от времени, страны пользователя, типа устройства, браузера и логических комбинаций условий.
