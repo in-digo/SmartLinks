@@ -88,6 +88,28 @@ public sealed class SmartLinkResolverTests
         Assert.Equal(priorityTenUrl, result.TargetUrl);
     }
 
+    // Игнорирует выключенное правило
+    [Fact]
+    public void ResolveIgnoresDisabledMatchingRule()
+    {
+        const string defaultUrl = "https://example.com/default";
+        const string disabledRuleUrl = "https://example.com/disabled";
+        const string enabledRuleUrl = "https://example.com/enabled";
+
+        var disabledRule = new SmartLinkRule(1, false, disabledRuleUrl, new StubCondition(true));
+        var enabledRule = new SmartLinkRule(2, true, enabledRuleUrl, new StubCondition(true));
+
+        var smartLink = new SmartLinkConfiguration(true, defaultUrl, new[] { enabledRule, disabledRule });
+        var context = new UrlResolutionContext(new DateTimeOffset(2026, 8, 17, 12, 0, 0, TimeSpan.Zero));
+
+        var resolver = new SmartLinkResolver();
+
+        var result = resolver.Resolve(smartLink, context);
+
+        Assert.Equal(UrlResolutionStatus.Resolved, result.Status);
+        Assert.Equal(enabledRuleUrl, result.TargetUrl);
+    }
+
     private sealed class StubCondition : ICompiledCondition
     {
         private readonly bool _result;

@@ -7,6 +7,7 @@ public sealed class SmartLinkResolver : ISmartLinkResolver
     public UrlResolutionResult Resolve(SmartLinkConfiguration smartLink, UrlResolutionContext context)
     {
         var matchingRule = smartLink.Rules
+            .Where(rule => rule.IsEnabled)
             .OrderBy(rule => rule.Priority)
             .FirstOrDefault(rule => rule.Condition.IsMatch(context));
 
