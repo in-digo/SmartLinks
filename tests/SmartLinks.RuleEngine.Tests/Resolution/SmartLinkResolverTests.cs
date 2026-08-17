@@ -63,6 +63,31 @@ public sealed class SmartLinkResolverTests
         Assert.Equal(defaultUrl, result.TargetUrl);
     }
 
+    // Выбирает совпавшее правило с наименьшим числовым значением приоритета
+    [Fact]
+    public void ResolveReturnsMatchingRuleWithLowestPriorityValue()
+    {
+        const string defaultUrl = "https://example.com/default";
+        const string priorityTenUrl = "https://example.com/priority-10";
+        const string priorityTwentyUrl = "https://example.com/priority-20";
+
+        var priorityTwentyRule = new SmartLinkRule(20, true, priorityTwentyUrl, new StubCondition(true));
+        var priorityTenRule = new SmartLinkRule(10, true, priorityTenUrl, new StubCondition(true));
+
+        var smartLink = new SmartLinkConfiguration(
+            true,
+            defaultUrl,
+            new[] { priorityTwentyRule, priorityTenRule });
+
+        var context = new UrlResolutionContext(new DateTimeOffset(2026, 8, 17, 12, 0, 0, TimeSpan.Zero));
+        var resolver = new SmartLinkResolver();
+
+        var result = resolver.Resolve(smartLink, context);
+
+        Assert.Equal(UrlResolutionStatus.Resolved, result.Status);
+        Assert.Equal(priorityTenUrl, result.TargetUrl);
+    }
+
     private sealed class StubCondition : ICompiledCondition
     {
         private readonly bool _result;
