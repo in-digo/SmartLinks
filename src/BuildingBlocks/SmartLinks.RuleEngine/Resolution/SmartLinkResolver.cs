@@ -6,6 +6,9 @@ public sealed class SmartLinkResolver : ISmartLinkResolver
     // Разрешает целевой URL для переданной умной ссылки
     public UrlResolutionResult Resolve(SmartLinkConfiguration smartLink, UrlResolutionContext context)
     {
+        if (!smartLink.IsActive)
+            return new UrlResolutionResult(UrlResolutionStatus.SmartLinkInactive, null);
+
         var matchingRule = smartLink.Rules
             .Where(rule => rule.IsEnabled)
             .OrderBy(rule => rule.Priority)

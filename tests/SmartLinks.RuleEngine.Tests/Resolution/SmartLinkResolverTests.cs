@@ -110,6 +110,24 @@ public sealed class SmartLinkResolverTests
         Assert.Equal(enabledRuleUrl, result.TargetUrl);
     }
 
+    // Возвращает неактивный результат для выключенной умной ссылки
+    [Fact]
+    public void ResolveReturnsInactiveResultForInactiveSmartLink()
+    {
+        const string defaultUrl = "https://example.com/default";
+
+        var rule = new SmartLinkRule(1, true, "https://example.com/matched", new StubCondition(true));
+        var smartLink = new SmartLinkConfiguration(false, defaultUrl, new[] { rule });
+        var context = new UrlResolutionContext(new DateTimeOffset(2026, 8, 17, 12, 0, 0, TimeSpan.Zero));
+
+        var resolver = new SmartLinkResolver();
+
+        var result = resolver.Resolve(smartLink, context);
+
+        Assert.Equal(UrlResolutionStatus.SmartLinkInactive, result.Status);
+        Assert.Null(result.TargetUrl);
+    }
+
     private sealed class StubCondition : ICompiledCondition
     {
         private readonly bool _result;
