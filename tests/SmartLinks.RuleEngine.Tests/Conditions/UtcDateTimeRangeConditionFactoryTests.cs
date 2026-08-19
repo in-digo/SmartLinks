@@ -27,4 +27,13 @@ public sealed class UtcDateTimeRangeConditionFactoryTests
 
         Assert.True(result);
     }
+
+    // Возвращает имя временного предиката из DSL
+    [Fact]
+    public void TypeReturnsUtcTimePredicateName()
+    {
+        var factory = new UtcDateTimeRangeConditionFactory();
+
+        Assert.Equal("utcTime", factory.Type);
+    }
 }

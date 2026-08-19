@@ -11,7 +11,7 @@ public sealed class UtcDateTimeRangeConditionFactory : IConditionFactory
     /// <summary>
     /// Тип создаваемого условия
     /// </summary>
-    public string Type => "utc-date-time-range";
+    public string Type => "utcTime";
 
     /// <summary>
     /// Создаёт условие из JSON-параметров

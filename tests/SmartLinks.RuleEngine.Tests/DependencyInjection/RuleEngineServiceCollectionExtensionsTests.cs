@@ -27,4 +27,18 @@ public sealed class RuleEngineServiceCollectionExtensionsTests
             serviceProvider.GetServices<IConditionFactory>(),
             conditionFactory => conditionFactory is UtcDateTimeRangeConditionFactory);
     }
+
+    // Регистрирует фабрику контекста с системным источником времени
+    [Fact]
+    public void AddSmartLinksRuleEngineRegistersContextFactoryWithSystemTimeProvider()
+    {
+        var services = new ServiceCollection();
+
+        services.AddSmartLinksRuleEngine();
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        Assert.Same(TimeProvider.System, serviceProvider.GetRequiredService<TimeProvider>());
+        Assert.IsType<UrlResolutionContextFactory>(serviceProvider.GetRequiredService<UrlResolutionContextFactory>());
+    }
 }

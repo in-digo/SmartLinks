@@ -14,6 +14,8 @@ public static class RuleEngineServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddSmartLinksRuleEngine(this IServiceCollection services)
     {
+        services.AddSingleton<TimeProvider>(TimeProvider.System);
+        services.AddSingleton<UrlResolutionContextFactory>();
         services.AddSingleton<ISmartLinkResolver, SmartLinkResolver>();
         services.AddSingleton<IConditionFactory, UtcDateTimeRangeConditionFactory>();
         services.AddSingleton<ConditionCompiler>();
