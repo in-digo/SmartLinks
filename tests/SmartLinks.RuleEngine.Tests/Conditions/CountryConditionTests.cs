@@ -32,4 +32,30 @@ public sealed class CountryConditionTests
 
         Assert.True(result);
     }
+
+    // false, если код страны не совпадает
+    [Fact]
+    public void IsMatchReturnsFalseWhenCountryCodeDoesNotMatch()
+    {
+        var countryFeature = new CountryFeature("DE");
+        var condition = new CountryCondition("RU");
+        var context = new UrlResolutionContext(new IResolutionFeature[] { countryFeature });
+
+        var result = condition.IsMatch(context);
+
+        Assert.False(result);
+    }
+
+    // false, если страну определить не удалось
+    [Fact]
+    public void IsMatchReturnsFalseWhenCountryCodeIsMissing()
+    {
+        var countryFeature = new CountryFeature(null);
+        var condition = new CountryCondition("RU");
+        var context = new UrlResolutionContext(new IResolutionFeature[] { countryFeature });
+
+        var result = condition.IsMatch(context);
+
+        Assert.False(result);
+    }
 }

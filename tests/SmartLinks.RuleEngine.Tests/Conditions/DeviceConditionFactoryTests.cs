@@ -27,4 +27,13 @@ public sealed class DeviceConditionFactoryTests
 
         Assert.True(result);
     }
+
+    // Возвращает имя предиката устройства из DSL
+    [Fact]
+    public void TypeReturnsDevicePredicateName()
+    {
+        var factory = new DeviceConditionFactory();
+
+        Assert.Equal("device", factory.Type);
+    }
 }

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using SmartLinks.RuleEngine.Conditions;
 using SmartLinks.RuleEngine.Resolution;
 
@@ -18,8 +19,10 @@ public static class RuleEngineServiceCollectionExtensions
 
         services.AddSingleton<IClientDeviceResolver, UserAgentDeviceResolver>();
         services.AddSingleton<IClientBrowserResolver, UserAgentBrowserResolver>();
+        services.TryAddSingleton<IClientLocationResolver, UnknownClientLocationResolver>();
 
         services.AddSingleton<IResolutionContextContributor, UtcTimeContextContributor>();
+        services.AddSingleton<IResolutionContextContributor, CountryContextContributor>();
         services.AddSingleton<IResolutionContextContributor, DeviceContextContributor>();
         services.AddSingleton<IResolutionContextContributor, BrowserContextContributor>();
 
@@ -29,6 +32,7 @@ public static class RuleEngineServiceCollectionExtensions
         services.AddSingleton<IConditionFactory, UtcDateTimeRangeConditionFactory>();
         services.AddSingleton<IConditionFactory, CountryConditionFactory>();
         services.AddSingleton<IConditionFactory, DeviceConditionFactory>();
+        services.AddSingleton<IConditionFactory, BrowserConditionFactory>();
 
         services.AddSingleton<ConditionCompiler>();
 

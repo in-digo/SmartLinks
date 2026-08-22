@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SmartLinks.RuleEngine.Conditions;
 using SmartLinks.RuleEngine.DependencyInjection;
 using SmartLinks.RuleEngine.Resolution;
+using System.Net;
 
 namespace SmartLinks.RuleEngine.Tests.DependencyInjection;
 
@@ -109,5 +110,75 @@ public sealed class RuleEngineServiceCollectionExtensionsTests
 
         Assert.Equal("mobile", deviceFeature.DeviceType);
         Assert.Equal("edge", browserFeature.Browser);
+    }
+
+    // Регистрирует фабрику условия браузера
+    [Fact]
+    public void AddSmartLinksRuleEngineRegistersBrowserConditionFactory()
+    {
+        var services = new ServiceCollection();
+
+        services.AddSmartLinksRuleEngine();
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var conditionFactories = serviceProvider.GetServices<IConditionFactory>();
+
+        Assert.Contains(conditionFactories, conditionFactory => conditionFactory is BrowserConditionFactory);
+    }
+
+    // Создаёт через DI признак страны с помощью настроенного resolver
+    [Fact]
+    public void AddSmartLinksRuleEngineCreatesContextWithCountryFeature()
+    {
+        var ipAddress = IPAddress.Parse("203.0.113.10");
+        const string countryCode = "RU";
+        var services = new ServiceCollection();
+        services.AddSingleton<IClientLocationResolver>(new StubClientLocationResolver(ipAddress, countryCode));
+
+        services.AddSmartLinksRuleEngine();
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var factory = serviceProvider.GetRequiredService<UrlResolutionContextFactory>();
+
+        var context = factory.Create(new UrlResolutionRequest(ipAddress));
+        var countryFeature = context.GetRequiredFeature<CountryFeature>();
+
+        Assert.Equal(countryCode, countryFeature.CountryCode);
+    }
+
+    // Добавляет неизвестную страну, если внешний resolver не настроен
+    [Fact]
+    public void AddSmartLinksRuleEngineCreatesContextWithUnknownCountryByDefault()
+    {
+        var services = new ServiceCollection();
+
+        services.AddSmartLinksRuleEngine();
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var factory = serviceProvider.GetRequiredService<UrlResolutionContextFactory>();
+
+        var context = factory.Create(new UrlResolutionRequest());
+        var countryFeature = context.GetRequiredFeature<CountryFeature>();
+
+        Assert.Null(countryFeature.CountryCode);
+    }
+
+    private sealed class StubClientLocationResolver : IClientLocationResolver
+    {
+        private readonly IPAddress _expectedIpAddress;
+        private readonly string _countryCode;
+
+        // Создаёт resolver с ожидаемым IP-адресом и кодом страны
+        public StubClientLocationResolver(IPAddress expectedIpAddress, string countryCode)
+        {
+            _expectedIpAddress = expectedIpAddress;
+            _countryCode = countryCode;
+        }
+
+        // Возвращает страну для ожидаемого IP-адреса
+        public string? ResolveCountryCode(IPAddress? ipAddress)
+        {
+            return _expectedIpAddress.Equals(ipAddress) ? _countryCode : null;
+        }
     }
 }

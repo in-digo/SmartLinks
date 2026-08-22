@@ -27,4 +27,13 @@ public sealed class CountryConditionFactoryTests
 
         Assert.True(result);
     }
+
+    // Возвращает имя предиката страны из DSL
+    [Fact]
+    public void TypeReturnsCountryPredicateName()
+    {
+        var factory = new CountryConditionFactory();
+
+        Assert.Equal("country", factory.Type);
+    }
 }
