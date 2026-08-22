@@ -15,7 +15,7 @@ public sealed class SmartLinkResolverTests
             DefaultUrl: defaultUrl,
             Rules: Array.Empty<SmartLinkRule>());
 
-        var context = new UrlResolutionContext(UtcNow: new DateTimeOffset(2026, 8, 17, 12, 0, 0, TimeSpan.Zero));
+        var context = CreateContext();
 
         var resolver = new SmartLinkResolver();
 
@@ -34,7 +34,7 @@ public sealed class SmartLinkResolverTests
 
         var rule = new SmartLinkRule(1, true, targetUrl, new StubCondition(true));
         var smartLink = new SmartLinkConfiguration(true, defaultUrl, new[] { rule });
-        var context = new UrlResolutionContext(new DateTimeOffset(2026, 8, 17, 12, 0, 0, TimeSpan.Zero));
+        var context = CreateContext();
 
         var resolver = new SmartLinkResolver();
 
@@ -53,7 +53,7 @@ public sealed class SmartLinkResolverTests
         var rule = new SmartLinkRule(1, true, "https://example.com/not-matched", new StubCondition(false));
 
         var smartLink = new SmartLinkConfiguration(true, defaultUrl, new[] { rule });
-        var context = new UrlResolutionContext(new DateTimeOffset(2026, 8, 17, 12, 0, 0, TimeSpan.Zero));
+        var context = CreateContext();
 
         var resolver = new SmartLinkResolver();
 
@@ -79,7 +79,7 @@ public sealed class SmartLinkResolverTests
             defaultUrl,
             new[] { priorityTwentyRule, priorityTenRule });
 
-        var context = new UrlResolutionContext(new DateTimeOffset(2026, 8, 17, 12, 0, 0, TimeSpan.Zero));
+        var context = CreateContext();
         var resolver = new SmartLinkResolver();
 
         var result = resolver.Resolve(smartLink, context);
@@ -100,7 +100,7 @@ public sealed class SmartLinkResolverTests
         var enabledRule = new SmartLinkRule(2, true, enabledRuleUrl, new StubCondition(true));
 
         var smartLink = new SmartLinkConfiguration(true, defaultUrl, new[] { enabledRule, disabledRule });
-        var context = new UrlResolutionContext(new DateTimeOffset(2026, 8, 17, 12, 0, 0, TimeSpan.Zero));
+        var context = CreateContext();
 
         var resolver = new SmartLinkResolver();
 
@@ -118,7 +118,7 @@ public sealed class SmartLinkResolverTests
 
         var rule = new SmartLinkRule(1, true, "https://example.com/matched", new StubCondition(true));
         var smartLink = new SmartLinkConfiguration(false, defaultUrl, new[] { rule });
-        var context = new UrlResolutionContext(new DateTimeOffset(2026, 8, 17, 12, 0, 0, TimeSpan.Zero));
+        var context = CreateContext();
 
         var resolver = new SmartLinkResolver();
 
@@ -139,7 +139,7 @@ public sealed class SmartLinkResolverTests
         var priorityTwentyRule = new SmartLinkRule(20, true, expectedUrl, new StubCondition(true));
 
         var smartLink = new SmartLinkConfiguration(true, defaultUrl, new[] { priorityTwentyRule, priorityTenRule });
-        var context = new UrlResolutionContext(new DateTimeOffset(2026, 8, 17, 12, 0, 0, TimeSpan.Zero));
+        var context = CreateContext();
 
         var resolver = new SmartLinkResolver();
 
@@ -147,6 +147,12 @@ public sealed class SmartLinkResolverTests
 
         Assert.Equal(UrlResolutionStatus.Resolved, result.Status);
         Assert.Equal(expectedUrl, result.TargetUrl);
+    }
+
+    // Создаёт пустой контекст для проверки алгоритма разрешения URL
+    private static UrlResolutionContext CreateContext()
+    {
+        return new UrlResolutionContext(Array.Empty<IResolutionFeature>());
     }
 
     private sealed class StubCondition : ICompiledCondition

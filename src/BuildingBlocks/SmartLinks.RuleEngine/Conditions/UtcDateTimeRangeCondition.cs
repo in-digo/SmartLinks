@@ -23,12 +23,12 @@ public sealed class UtcDateTimeRangeCondition : ICompiledCondition
     }
 
     /// <summary>
-    /// Проверяет попадание времени запроса в заданный интервал.
+    /// Проверяет попадание времени запроса в заданный UTC-интервал
     /// </summary>
     public bool IsMatch(UrlResolutionContext context)
     {
-        var utcNow = context.UtcNow.ToUniversalTime();
+        var utcTimeFeature = context.GetRequiredFeature<UtcTimeFeature>();
 
-        return utcNow >= _fromUtc && utcNow < _toUtc;
+        return utcTimeFeature.UtcNow >= _fromUtc && utcTimeFeature.UtcNow < _toUtc;
     }
 }

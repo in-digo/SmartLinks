@@ -1,28 +1,36 @@
-using System.Net;
 using SmartLinks.RuleEngine.Resolution;
 
 namespace SmartLinks.RuleEngine.Tests.Resolution;
 
 public sealed class UrlResolutionContextTests
 {
-    // Сохраняет все переданные характеристики контекста разрешения URL
+    // Сохраняет все переданные типизированные признаки
     [Fact]
-    public void ConstructorStoresAllContextValues()
+    public void ConstructorStoresAllFeatures()
     {
-        var utcNow = new DateTimeOffset(2026, 8, 17, 12, 0, 0, TimeSpan.Zero);
-        var ipAddress = IPAddress.Parse("203.0.113.10");
-        const string countryCode = "RU";
-        const string deviceType = "Mobile";
-        const string browser = "Chrome";
-        const string userAgent = "SmartLinks-Test-Agent";
+        var firstFeature = new StubFeature("value");
+        var secondFeature = new AnotherStubFeature(42);
+        var features = new IResolutionFeature[] { firstFeature, secondFeature };
 
-        var context = new UrlResolutionContext(utcNow, ipAddress, countryCode, deviceType, browser, userAgent);
+        var context = new UrlResolutionContext(features);
 
-        Assert.Equal(utcNow, context.UtcNow);
-        Assert.Equal(ipAddress, context.IpAddress);
-        Assert.Equal(countryCode, context.CountryCode);
-        Assert.Equal(deviceType, context.DeviceType);
-        Assert.Equal(browser, context.Browser);
-        Assert.Equal(userAgent, context.UserAgent);
+        Assert.Same(firstFeature, context.GetRequiredFeature<StubFeature>());
+        Assert.Same(secondFeature, context.GetRequiredFeature<AnotherStubFeature>());
     }
+
+    // Возвращает признак запрошенного типа
+    [Fact]
+    public void GetRequiredFeatureReturnsFeatureOfRequestedType()
+    {
+        var feature = new StubFeature("value");
+        var context = new UrlResolutionContext(
+            new IResolutionFeature[] { feature });
+
+        var result = context.GetRequiredFeature<StubFeature>();
+
+        Assert.Same(feature, result);
+    }
+
+    private sealed record AnotherStubFeature(int Value) : IResolutionFeature;
+    private sealed record StubFeature(string Value) : IResolutionFeature;
 }

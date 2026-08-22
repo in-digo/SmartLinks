@@ -21,8 +21,10 @@ public sealed class UtcDateTimeRangeConditionFactoryTests
 
         var factory = new UtcDateTimeRangeConditionFactory();
         var condition = factory.Create(document.RootElement);
-        var context = new UrlResolutionContext(new DateTimeOffset(2026, 8, 19, 11, 0, 0, TimeSpan.Zero));
-
+        var requestTimeUtc = new DateTimeOffset(2026, 8, 19, 11, 0, 0, TimeSpan.Zero);
+        var utcTimeFeature = new UtcTimeFeature(requestTimeUtc);
+        var context = new UrlResolutionContext(new IResolutionFeature[] { utcTimeFeature });
+        
         var result = condition.IsMatch(context);
 
         Assert.True(result);

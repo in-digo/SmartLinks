@@ -13,8 +13,9 @@ public sealed class UtcDateTimeRangeConditionTests
         var toUtc = new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero);
         var requestTimeUtc = new DateTimeOffset(2026, 8, 19, 11, 0, 0, TimeSpan.Zero);
 
+        var utcTimeFeature = new UtcTimeFeature(requestTimeUtc);
         var condition = new UtcDateTimeRangeCondition(fromUtc, toUtc);
-        var context = new UrlResolutionContext(requestTimeUtc);
+        var context = new UrlResolutionContext(new IResolutionFeature[] { utcTimeFeature });
 
         var result = condition.IsMatch(context);
 
@@ -33,9 +34,10 @@ public sealed class UtcDateTimeRangeConditionTests
         var toUtc = new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero);
         var requestTimeUtc = fromUtc.AddMinutes(minutesFromStart);
 
+        var utcTimeFeature = new UtcTimeFeature(requestTimeUtc);
         var condition = new UtcDateTimeRangeCondition(fromUtc, toUtc);
-        var context = new UrlResolutionContext(requestTimeUtc);
-
+        var context = new UrlResolutionContext(new IResolutionFeature[] { utcTimeFeature });
+        
         var result = condition.IsMatch(context);
 
         Assert.Equal(expected, result);
