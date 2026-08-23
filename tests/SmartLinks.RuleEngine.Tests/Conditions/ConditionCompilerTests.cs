@@ -6,65 +6,64 @@ namespace SmartLinks.RuleEngine.Tests.Conditions;
 
 public sealed class ConditionCompilerTests
 {
-    // Выбирает фабрику, соответствующую типу условия
+    /// <summary>
+    /// Проверяет выбор фабрики, соответствующей типу условия
+    /// </summary>
     [Fact]
     public void CompileUsesFactoryMatchingConditionType()
     {
         using var document = JsonDocument.Parse("{}");
 
         var parameters = document.RootElement.Clone();
-        var expectedCondition = new StubCondition();
-        var unexpectedCondition = new StubCondition();
+        var expectedCondition = new StubCondition(false);
+        var unexpectedCondition = new StubCondition(false);
         var countryFactory = new StubConditionFactory("country", unexpectedCondition);
         var timeFactory = new StubConditionFactory("utc-date-time-range", expectedCondition);
-        var compiler = new ConditionCompiler(new[] { countryFactory, timeFactory });
+        var compiler = new ConditionCompiler([countryFactory, timeFactory]);
 
         var result = compiler.Compile("utc-date-time-range", parameters);
 
         Assert.Same(expectedCondition, result);
     }
 
+    /// <summary>
+    /// Проверяет ошибку при отсутствии фабрики требуемого типа
+    /// </summary>
+    [Fact]
+    public void CompileThrowsWhenConditionTypeIsNotRegistered()
+    {
+        using var document = JsonDocument.Parse("{}");
+
+        var parameters = document.RootElement.Clone();
+        var compiler = new ConditionCompiler([]);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => compiler.Compile("unknown", parameters));
+
+        Assert.Equal("Фабрика условия типа 'unknown' не зарегистрирована", exception.Message);
+    }
+
     private sealed class StubConditionFactory : IConditionFactory
     {
-        private readonly ICompiledCondition condition;
+        private readonly ICompiledCondition _condition;
 
         public string Type { get; }
 
-        // Создаёт фабрику с заданным типом и результатом
+        /// <summary>
+        /// Создаёт фабрику с заданным типом и результатом
+        /// </summary>
         public StubConditionFactory(string type, ICompiledCondition condition)
         {
             Type = type;
-            this.condition = condition;
+            _condition = condition;
         }
 
-        // Возвращает заданное скомпилированное условие
+        /// <summary>
+        /// Возвращает заданное скомпилированное условие
+        /// </summary>
         public ICompiledCondition Create(JsonElement parameters)
         {
-            return condition;
+            return _condition;
         }
     }
-
-    private sealed class StubCondition : ICompiledCondition
-    {
-        // Возвращает результат, не влияющий на проверяемое поведение
-        public bool IsMatch(UrlResolutionContext context)
-        {
-            return false;
-        }
-    }
-
-        // Выдаёт корректную ошибку, если фабрика типа условия не зарегистрирована
-        [Fact]
-        public void CompileThrowsWhenConditionTypeIsNotRegistered()
-        {
-            using var document = JsonDocument.Parse("{}");
-
-            var parameters = document.RootElement.Clone();
-            var compiler = new ConditionCompiler(Array.Empty<IConditionFactory>());
-
-            var exception = Assert.Throws<InvalidOperationException>(
-                () => compiler.Compile("unknown", parameters));
-
-            Assert.Equal("Фабрика условия типа 'unknown' не зарегистрирована", exception.Message);
-        }
 }

@@ -35,6 +35,7 @@ public static class RuleEngineServiceCollectionExtensions
         services.AddSingleton<IConditionFactory, BrowserConditionFactory>();
 
         services.AddSingleton<ConditionCompiler>();
+        services.AddSingleton<ConditionDslCompiler>();
 
         return services;
     }
