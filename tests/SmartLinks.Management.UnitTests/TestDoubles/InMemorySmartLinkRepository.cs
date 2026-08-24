@@ -11,9 +11,14 @@ internal sealed class InMemorySmartLinkRepository : ISmartLinkRepository
     public int AddCallCount { get; private set; }
     public int ExistsBySlugCallCount { get; private set; }
     public int GetByIdCallCount { get; private set; }
+    public SmartLink? UpdatedSmartLink { get; private set; }
+    public int UpdateCallCount { get; private set; }
+    public Guid? LastExcludedSmartLinkId { get; private set; }
+
     public CancellationToken LastAddCancellationToken { get; private set; }
     public CancellationToken LastExistsBySlugCancellationToken { get; private set; }
     public CancellationToken LastGetByIdCancellationToken { get; private set; }
+    public CancellationToken LastUpdateCancellationToken { get; private set; }
 
     /// <summary>
     /// Добавляет исходную умную ссылку в тестовый репозиторий
@@ -35,7 +40,7 @@ internal sealed class InMemorySmartLinkRepository : ISmartLinkRepository
         _smartLinks.TryGetValue(id, out var smartLink);
         return Task.FromResult(smartLink);
     }
-    
+
     /// <summary>
     /// Проверяет существование умной ссылки с указанным коротким адресом
     /// </summary>
@@ -46,6 +51,8 @@ internal sealed class InMemorySmartLinkRepository : ISmartLinkRepository
     {
         ExistsBySlugCallCount++;
         LastExistsBySlugCancellationToken = cancellationToken;
+        LastExcludedSmartLinkId = excludedSmartLinkId;
+
         cancellationToken.ThrowIfCancellationRequested();
 
         var exists = _smartLinks.Values.Any(smartLink =>
@@ -75,8 +82,13 @@ internal sealed class InMemorySmartLinkRepository : ISmartLinkRepository
     /// </summary>
     public Task UpdateAsync(SmartLink smartLink, CancellationToken cancellationToken)
     {
+        UpdateCallCount++;
+        LastUpdateCancellationToken = cancellationToken;
         cancellationToken.ThrowIfCancellationRequested();
+
         _smartLinks[smartLink.Id] = smartLink;
+        UpdatedSmartLink = smartLink;
+
         return Task.CompletedTask;
     }
 }
