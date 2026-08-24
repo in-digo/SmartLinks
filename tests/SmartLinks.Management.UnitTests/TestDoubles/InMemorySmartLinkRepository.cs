@@ -8,14 +8,12 @@ internal sealed class InMemorySmartLinkRepository : ISmartLinkRepository
     private readonly Dictionary<Guid, SmartLink> _smartLinks = [];
 
     public SmartLink? AddedSmartLink { get; private set; }
-
     public int AddCallCount { get; private set; }
-
     public int ExistsBySlugCallCount { get; private set; }
-
+    public int GetByIdCallCount { get; private set; }
     public CancellationToken LastAddCancellationToken { get; private set; }
-
     public CancellationToken LastExistsBySlugCancellationToken { get; private set; }
+    public CancellationToken LastGetByIdCancellationToken { get; private set; }
 
     /// <summary>
     /// Добавляет исходную умную ссылку в тестовый репозиторий
@@ -30,11 +28,14 @@ internal sealed class InMemorySmartLinkRepository : ISmartLinkRepository
     /// </summary>
     public Task<SmartLink?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
     {
+        GetByIdCallCount++;
+        LastGetByIdCancellationToken = cancellationToken;
         cancellationToken.ThrowIfCancellationRequested();
+
         _smartLinks.TryGetValue(id, out var smartLink);
         return Task.FromResult(smartLink);
     }
-
+    
     /// <summary>
     /// Проверяет существование умной ссылки с указанным коротким адресом
     /// </summary>
