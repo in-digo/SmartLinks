@@ -7,6 +7,7 @@
           <Format>cobertura</Format>
           <Include>[SmartLinks.*]*</Include>
           <Exclude>[*.Tests]*</Exclude>
+          <ExcludeByFile>**/Persistence/Migrations/*.Designer.cs,**/Persistence/Migrations/*ModelSnapshot.cs</ExcludeByFile>
           <DeterministicReport>true</DeterministicReport>
         </Configuration>
       </DataCollector>
