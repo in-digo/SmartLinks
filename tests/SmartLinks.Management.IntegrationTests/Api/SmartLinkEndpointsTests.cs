@@ -249,6 +249,138 @@ public sealed class SmartLinkEndpointsTests : IClassFixture<PostgreSqlFixture>, 
     }
 
     /// <summary>
+    /// Проверяет запрет изменения умной ссылки без API-ключа
+    /// </summary>
+    [Fact]
+    public async Task UpdateEndpointReturnsUnauthorizedWhenApiKeyIsMissing()
+    {
+        var id = await CreateSmartLinkAsync("update-without-api-key");
+        var request = CreateValidUpdateRequest("updated-without-api-key");
+
+        using var client = _factory.CreateClient();
+        using var response = await client.PutAsJsonAsync(
+            $"/api/smart-links/{id}",
+            request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    /// <summary>
+    /// Проверяет полную замену и сохранение конфигурации умной ссылки
+    /// </summary>
+    [Fact]
+    public async Task UpdateEndpointReplacesAndPersistsSmartLinkWhenRequestIsValid()
+    {
+        var id = await CreateSmartLinkAsync("smart-link-before-update");
+        var request = CreateValidUpdateRequest("smart-link-after-update");
+
+        using var updateClient = CreateClientWithApiKey(_apiKey);
+        using var updateResponse = await updateClient.PutAsJsonAsync(
+            $"/api/smart-links/{id}",
+            request);
+
+        Assert.Equal(HttpStatusCode.NoContent, updateResponse.StatusCode);
+
+        // Проверяем результат через публичный HTTP-контракт чтения
+        using var getClient = _factory.CreateClient();
+        using var getResponse = await getClient.GetAsync($"/api/smart-links/{id}");
+
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+
+        var smartLink =
+            await getResponse.Content.ReadFromJsonAsync<GetSmartLinkTestResponse>();
+
+        Assert.NotNull(smartLink);
+        Assert.Equal(id, smartLink.Id);
+        Assert.Equal(request.Slug, smartLink.Slug);
+        Assert.Equal(request.DefaultUrl, smartLink.DefaultUrl);
+        Assert.Equal(request.IsActive, smartLink.IsActive);
+        Assert.Collection(
+            smartLink.Rules,
+            rule =>
+            {
+                Assert.Equal(5, rule.Priority);
+                Assert.True(rule.IsEnabled);
+                Assert.Equal("https://example.com/poland", rule.TargetUrl);
+                Assert.Equal(CreateCountryDsl("PL"), rule.ConditionDsl);
+            });
+    }
+
+    /// <summary>
+    /// Проверяет Problem Details при изменении отсутствующей умной ссылки
+    /// </summary>
+    [Fact]
+    public async Task UpdateEndpointReturnsNotFoundWhenSmartLinkDoesNotExist()
+    {
+        var id = Guid.NewGuid();
+        var request = CreateValidUpdateRequest("update-missing-smart-link");
+
+        using var client = CreateClientWithApiKey(_apiKey);
+        using var response = await client.PutAsJsonAsync(
+            $"/api/smart-links/{id}",
+            request);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        var problemDetails = await ReadProblemDetailsAsync(response);
+
+        Assert.Equal(StatusCodes.Status404NotFound, problemDetails.Status);
+        Assert.Equal("Умная ссылка не найдена", problemDetails.Title);
+        Assert.NotNull(problemDetails.Detail);
+        Assert.Contains(id.ToString(), problemDetails.Detail);
+    }
+
+    /// <summary>
+    /// Проверяет конфликт при изменении slug на занятое значение без учёта регистра
+    /// </summary>
+    [Fact]
+    public async Task UpdateEndpointReturnsConflictWhenSlugAlreadyExistsIgnoringCase()
+    {
+        await CreateSmartLinkAsync("existing-update-slug");
+        var updatedSmartLinkId = await CreateSmartLinkAsync("changed-update-slug");
+        var request = CreateValidUpdateRequest("EXISTING-UPDATE-SLUG");
+
+        using var client = CreateClientWithApiKey(_apiKey);
+        using var response = await client.PutAsJsonAsync(
+            $"/api/smart-links/{updatedSmartLinkId}",
+            request);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+        var problemDetails = await ReadProblemDetailsAsync(response);
+
+        Assert.Equal(StatusCodes.Status409Conflict, problemDetails.Status);
+        Assert.Equal("Умная ссылка уже существует", problemDetails.Title);
+    }
+
+    /// <summary>
+    /// Проверяет Problem Details при изменении ссылки с некорректным URL
+    /// </summary>
+    [Fact]
+    public async Task UpdateEndpointReturnsBadRequestWhenDefaultUrlIsInvalid()
+    {
+        var id = await CreateSmartLinkAsync("invalid-update-url");
+        var request = CreateValidUpdateRequest("invalid-update-url") with
+        {
+            DefaultUrl = "ftp://example.com/default"
+        };
+
+        using var client = CreateClientWithApiKey(_apiKey);
+        using var response = await client.PutAsJsonAsync(
+            $"/api/smart-links/{id}",
+            request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var problemDetails = await ReadProblemDetailsAsync(response);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, problemDetails.Status);
+        Assert.Equal("Некорректный запрос", problemDetails.Title);
+        Assert.NotNull(problemDetails.Detail);
+        Assert.Contains("URL по умолчанию", problemDetails.Detail);
+    }
+
+    /// <summary>
     /// Создаёт HTTP-клиент с указанным API-ключом
     /// </summary>
     private HttpClient CreateClientWithApiKey(string apiKey)
@@ -279,6 +411,44 @@ public sealed class SmartLinkEndpointsTests : IClassFixture<PostgreSqlFixture>, 
                     true,
                     "https://example.com/kazakhstan",
                     CreateCountryDsl("KZ"))
+            ]);
+    }
+
+    /// <summary>
+    /// Создаёт умную ссылку через Management API и возвращает её идентификатор
+    /// </summary>
+    private async Task<Guid> CreateSmartLinkAsync(string slug)
+    {
+        using var client = CreateClientWithApiKey(_apiKey);
+        using var response = await client.PostAsJsonAsync(
+            "/api/smart-links",
+            CreateValidRequest(slug));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var result =
+            await response.Content.ReadFromJsonAsync<CreateSmartLinkTestResponse>();
+
+        Assert.NotNull(result);
+
+        return result.Id;
+    }
+
+    /// <summary>
+    /// Создаёт корректный запрос полной замены умной ссылки
+    /// </summary>
+    private static UpdateSmartLinkTestRequest CreateValidUpdateRequest(string slug)
+    {
+        return new UpdateSmartLinkTestRequest(
+            slug,
+            "https://example.com/updated-default",
+            false,
+            [
+                new SmartLinkRuleTestRequest(
+                    5,
+                    true,
+                    "https://example.com/poland",
+                    CreateCountryDsl("PL"))
             ]);
     }
 
@@ -395,4 +565,13 @@ public sealed class SmartLinkEndpointsTests : IClassFixture<PostgreSqlFixture>, 
         bool IsEnabled,
         string TargetUrl,
         string ConditionDsl);
+
+    /// <summary>
+    /// Описывает тестовый запрос полной замены умной ссылки
+    /// </summary>
+    private sealed record UpdateSmartLinkTestRequest(
+        string Slug,
+        string DefaultUrl,
+        bool IsActive,
+        SmartLinkRuleTestRequest[] Rules);
 }

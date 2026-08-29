@@ -2,7 +2,9 @@ using SmartLinks.Management.Api.Contracts.SmartLinks;
 using SmartLinks.Management.Application.SmartLinks.Models;
 using SmartLinks.Management.Application.SmartLinks.Queries;
 using ApplicationCreateSmartLinkRequest = SmartLinks.Management.Application.SmartLinks.Create.CreateSmartLinkRequest;
+using ApplicationUpdateSmartLinkRequest = SmartLinks.Management.Application.SmartLinks.Update.UpdateSmartLinkRequest;
 using CreateSmartLinkUseCase = SmartLinks.Management.Application.SmartLinks.Create.CreateSmartLinkUseCase;
+using UpdateSmartLinkUseCase = SmartLinks.Management.Application.SmartLinks.Update.UpdateSmartLinkUseCase;
 
 namespace SmartLinks.Management.Api.Endpoints;
 
@@ -20,6 +22,9 @@ public static class SmartLinkEndpoints
             .RequireAuthorization();
 
         endpoints.MapGet("/api/smart-links/{id:guid}", GetSmartLinkAsync);
+
+        endpoints.MapPut("/api/smart-links/{id:guid}", UpdateSmartLinkAsync)
+            .RequireAuthorization();
 
         return endpoints;
     }
@@ -50,7 +55,9 @@ public static class SmartLinkEndpoints
 
         var id = await useCase.ExecuteAsync(applicationRequest, cancellationToken);
 
-        return Results.Created($"/api/smart-links/{id}", new CreateSmartLinkResponse(id));
+        return Results.Created(
+            $"/api/smart-links/{id}",
+            new CreateSmartLinkResponse(id));
     }
 
     /// <summary>
@@ -79,5 +86,36 @@ public static class SmartLinkEndpoints
             rules);
 
         return Results.Ok(response);
+    }
+
+    /// <summary>
+    /// Полностью заменяет конфигурацию умной ссылки
+    /// </summary>
+    private static async Task<IResult> UpdateSmartLinkAsync(
+        Guid id,
+        UpdateSmartLinkRequest request,
+        UpdateSmartLinkUseCase useCase,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request.Rules);
+
+        var rules = request.Rules
+            .Select(rule => new SmartLinkRuleInput(
+                rule.Priority,
+                rule.IsEnabled,
+                rule.TargetUrl,
+                rule.ConditionDsl))
+            .ToArray();
+
+        var applicationRequest = new ApplicationUpdateSmartLinkRequest(
+            id,
+            request.Slug,
+            request.DefaultUrl,
+            request.IsActive,
+            rules);
+
+        await useCase.ExecuteAsync(applicationRequest, cancellationToken);
+
+        return Results.NoContent();
     }
 }
