@@ -1,13 +1,15 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.OpenApi.Models;
 using SmartLinks.Management.Api.Authentication;
 using SmartLinks.Management.Api.Endpoints;
 using SmartLinks.Management.Api.ExceptionHandling;
+using SmartLinks.Management.Api.OpenApi;
 using SmartLinks.Management.Application.SmartLinks.Create;
-using SmartLinks.Management.Infrastructure.DependencyInjection;
+using SmartLinks.Management.Application.SmartLinks.Publication;
 using SmartLinks.Management.Application.SmartLinks.Queries;
 using SmartLinks.Management.Application.SmartLinks.Update;
-using SmartLinks.Management.Application.SmartLinks.Publication;
+using SmartLinks.Management.Infrastructure.DependencyInjection;
 using SmartLinks.RuleEngine.DependencyInjection;
 
 const string apiKeyAuthenticationScheme = "ApiKey";
@@ -29,10 +31,37 @@ builder.Services
     .AddAuthentication(apiKeyAuthenticationScheme)
     .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(apiKeyAuthenticationScheme, _ => { });
 builder.Services.AddAuthorization();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "SmartLinks Management API",
+        Version = "v1"
+    });
+
+    options.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.ApiKey,
+        In = ParameterLocation.Header,
+        Name = "X-Api-Key",
+        Description = "API-ключ для изменяющих операций Management API"
+    });
+
+    options.OperationFilter<ApiKeySecurityOperationFilter>();
+});
 
 var app = builder.Build();
 
 app.UseExceptionHandler();
+app.UseSwagger();
+app.UseSwaggerUI(options =>
+{
+    options.SwaggerEndpoint(
+        "/swagger/v1/swagger.json",
+        "SmartLinks Management API v1");
+    options.RoutePrefix = "swagger";
+});
 app.UseAuthentication();
 app.UseAuthorization();
 

@@ -7,15 +7,19 @@ public sealed class ManagementApiStartupTests : IClassFixture<WebApplicationFact
 {
     private readonly WebApplicationFactory<Program> _factory;
 
-    // Сохраняет фабрику тестового хоста Management API
+    /// <summary>
+    /// Сохраняет фабрику тестового хоста Management API
+    /// </summary>
     public ManagementApiStartupTests(WebApplicationFactory<Program> factory)
     {
         _factory = factory;
     }
 
-    // Проверяет запуск Management API и отсутствие пока не настроенного корневого маршрута
+    /// <summary>
+    /// Проверяет отсутствие корневого маршрута Management API
+    /// </summary>
     [Fact]
-    public async Task RootEndpointReturnsNotFoundWhenRoutesAreNotConfigured()
+    public async Task RootEndpointReturnsNotFound()
     {
         using var client = _factory.CreateClient();
 
