@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Diagnostics;
 using SmartLinks.Management.Application.Exceptions;
 
@@ -43,6 +44,14 @@ public sealed class ManagementApiExceptionHandler : IExceptionHandler
                 title: "Умная ссылка уже существует",
                 detail: exception.Message),
             ArgumentException => Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Некорректный запрос",
+                detail: exception.Message),
+            JsonException => Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Некорректный запрос",
+                detail: exception.Message),
+            InvalidOperationException => Results.Problem(
                 statusCode: StatusCodes.Status400BadRequest,
                 title: "Некорректный запрос",
                 detail: exception.Message),

@@ -381,6 +381,161 @@ public sealed class SmartLinkEndpointsTests : IClassFixture<PostgreSqlFixture>, 
     }
 
     /// <summary>
+    /// Проверяет запрет публикации умной ссылки без API-ключа
+    /// </summary>
+    [Fact]
+    public async Task PublishEndpointReturnsUnauthorizedWhenApiKeyIsMissing()
+    {
+        var id = await CreateSmartLinkAsync("publish-without-api-key");
+
+        using var client = _factory.CreateClient();
+        using var response = await client.PostAsync(
+            $"/api/smart-links/{id}/publish",
+            null);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    /// <summary>
+    /// Проверяет публикацию умной ссылки и возврат глобальной ревизии
+    /// </summary>
+    [Fact]
+    public async Task PublishEndpointPublishesSmartLinkAndReturnsRevision()
+    {
+        var id = await CreateSmartLinkAsync("published-smart-link");
+
+        using var client = CreateClientWithApiKey(_apiKey);
+        using var response = await client.PostAsync(
+            $"/api/smart-links/{id}/publish",
+            null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result =
+            await response.Content.ReadFromJsonAsync<PublishSmartLinkTestResponse>();
+
+        Assert.NotNull(result);
+        Assert.True(result.Revision > 0);
+    }
+
+    /// <summary>
+    /// Проверяет Problem Details при публикации отсутствующей умной ссылки
+    /// </summary>
+    [Fact]
+    public async Task PublishEndpointReturnsNotFoundWhenSmartLinkDoesNotExist()
+    {
+        var id = Guid.NewGuid();
+
+        using var client = CreateClientWithApiKey(_apiKey);
+        using var response = await client.PostAsync(
+            $"/api/smart-links/{id}/publish",
+            null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        var problemDetails = await ReadProblemDetailsAsync(response);
+
+        Assert.Equal(StatusCodes.Status404NotFound, problemDetails.Status);
+        Assert.Equal("Умная ссылка не найдена", problemDetails.Title);
+        Assert.NotNull(problemDetails.Detail);
+        Assert.Contains(id.ToString(), problemDetails.Detail);
+    }
+
+    /// <summary>
+    /// Проверяет Problem Details при публикации ссылки с некорректным DSL
+    /// </summary>
+    [Fact]
+    public async Task PublishEndpointReturnsBadRequestWhenConditionDslIsInvalid()
+    {
+        var createRequest = CreateValidRequest("invalid-publish-dsl") with
+        {
+            Rules =
+            [
+                new SmartLinkRuleTestRequest(
+                    10,
+                    true,
+                    "https://example.com/invalid-dsl",
+                    "{ invalid json")
+            ]
+        };
+
+        using var createClient = CreateClientWithApiKey(_apiKey);
+        using var createResponse = await createClient.PostAsJsonAsync(
+            "/api/smart-links",
+            createRequest);
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        var createResult =
+            await createResponse.Content.ReadFromJsonAsync<CreateSmartLinkTestResponse>();
+
+        Assert.NotNull(createResult);
+
+        using var publishClient = CreateClientWithApiKey(_apiKey);
+        using var publishResponse = await publishClient.PostAsync(
+            $"/api/smart-links/{createResult.Id}/publish",
+            null);
+
+        Assert.Equal(HttpStatusCode.BadRequest, publishResponse.StatusCode);
+
+        var problemDetails = await ReadProblemDetailsAsync(publishResponse);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, problemDetails.Status);
+        Assert.Equal("Некорректный запрос", problemDetails.Title);
+        Assert.NotNull(problemDetails.Detail);
+    }
+
+    /// <summary>
+    /// Проверяет Problem Details при публикации ссылки с некорректной структурой DSL
+    /// </summary>
+    [Fact]
+    public async Task PublishEndpointReturnsBadRequestWhenConditionDslStructureIsInvalid()
+    {
+        var invalidConditionDsl = """
+            {
+            "dslVersion": 1
+            }
+            """;
+
+        var createRequest = CreateValidRequest("invalid-publish-dsl-structure") with
+        {
+            Rules =
+            [
+                new SmartLinkRuleTestRequest(
+                    10,
+                    true,
+                    "https://example.com/invalid-dsl-structure",
+                    invalidConditionDsl)
+            ]
+        };
+
+        using var createClient = CreateClientWithApiKey(_apiKey);
+        using var createResponse = await createClient.PostAsJsonAsync(
+            "/api/smart-links",
+            createRequest);
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        var createResult = await createResponse.Content.ReadFromJsonAsync<CreateSmartLinkTestResponse>();
+
+        Assert.NotNull(createResult);
+
+        using var publishClient = CreateClientWithApiKey(_apiKey);
+        using var publishResponse = await publishClient.PostAsync(
+            $"/api/smart-links/{createResult.Id}/publish",
+            null);
+
+        Assert.Equal(HttpStatusCode.BadRequest, publishResponse.StatusCode);
+
+        var problemDetails = await ReadProblemDetailsAsync(publishResponse);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, problemDetails.Status);
+        Assert.Equal("Некорректный запрос", problemDetails.Title);
+        Assert.NotNull(problemDetails.Detail);
+        Assert.Contains("condition", problemDetails.Detail);
+    }
+
+    /// <summary>
     /// Создаёт HTTP-клиент с указанным API-ключом
     /// </summary>
     private HttpClient CreateClientWithApiKey(string apiKey)
@@ -574,4 +729,9 @@ public sealed class SmartLinkEndpointsTests : IClassFixture<PostgreSqlFixture>, 
         string DefaultUrl,
         bool IsActive,
         SmartLinkRuleTestRequest[] Rules);
+
+    /// <summary>
+    /// Описывает тестовый результат публикации умной ссылки
+    /// </summary>
+    private sealed record PublishSmartLinkTestResponse(long Revision);
 }

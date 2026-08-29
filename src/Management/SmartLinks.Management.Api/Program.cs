@@ -7,6 +7,8 @@ using SmartLinks.Management.Application.SmartLinks.Create;
 using SmartLinks.Management.Infrastructure.DependencyInjection;
 using SmartLinks.Management.Application.SmartLinks.Queries;
 using SmartLinks.Management.Application.SmartLinks.Update;
+using SmartLinks.Management.Application.SmartLinks.Publication;
+using SmartLinks.RuleEngine.DependencyInjection;
 
 const string apiKeyAuthenticationScheme = "ApiKey";
 
@@ -18,9 +20,11 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ManagementApiExceptionHandler>();
 builder.Services.AddHealthChecks();
 builder.Services.AddManagementInfrastructure(connectionString);
+builder.Services.AddSmartLinksRuleEngine();
 builder.Services.AddScoped<CreateSmartLinkUseCase>();
 builder.Services.AddScoped<GetSmartLinkUseCase>();
 builder.Services.AddScoped<UpdateSmartLinkUseCase>();
+builder.Services.AddScoped<PublishSmartLinkUseCase>();
 builder.Services
     .AddAuthentication(apiKeyAuthenticationScheme)
     .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(apiKeyAuthenticationScheme, _ => { });

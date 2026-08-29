@@ -1,5 +1,6 @@
 using SmartLinks.Management.Api.Contracts.SmartLinks;
 using SmartLinks.Management.Application.SmartLinks.Models;
+using SmartLinks.Management.Application.SmartLinks.Publication;
 using SmartLinks.Management.Application.SmartLinks.Queries;
 using ApplicationCreateSmartLinkRequest = SmartLinks.Management.Application.SmartLinks.Create.CreateSmartLinkRequest;
 using ApplicationUpdateSmartLinkRequest = SmartLinks.Management.Application.SmartLinks.Update.UpdateSmartLinkRequest;
@@ -24,6 +25,9 @@ public static class SmartLinkEndpoints
         endpoints.MapGet("/api/smart-links/{id:guid}", GetSmartLinkAsync);
 
         endpoints.MapPut("/api/smart-links/{id:guid}", UpdateSmartLinkAsync)
+            .RequireAuthorization();
+
+        endpoints.MapPost("/api/smart-links/{id:guid}/publish", PublishSmartLinkAsync)
             .RequireAuthorization();
 
         return endpoints;
@@ -117,5 +121,18 @@ public static class SmartLinkEndpoints
         await useCase.ExecuteAsync(applicationRequest, cancellationToken);
 
         return Results.NoContent();
+    }
+
+    /// <summary>
+    /// Публикует текущую конфигурацию умной ссылки
+    /// </summary>
+    private static async Task<IResult> PublishSmartLinkAsync(
+        Guid id,
+        PublishSmartLinkUseCase useCase,
+        CancellationToken cancellationToken)
+    {
+        var revision = await useCase.ExecuteAsync(id, cancellationToken);
+
+        return Results.Ok(new PublishSmartLinkResponse(revision));
     }
 }
