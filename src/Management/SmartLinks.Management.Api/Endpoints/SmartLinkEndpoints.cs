@@ -17,6 +17,8 @@ public static class SmartLinkEndpoints
     /// <summary>
     /// Регистрирует HTTP endpoints управления умными ссылками
     /// </summary>
+    /// <param name="endpoints">Построитель маршрутов приложения</param>
+    /// <returns>Построитель маршрутов приложения</returns>
     public static IEndpointRouteBuilder MapSmartLinkEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost("/api/smart-links", CreateSmartLinkAsync)
@@ -34,8 +36,15 @@ public static class SmartLinkEndpoints
     }
 
     /// <summary>
-    /// Создаёт умную ссылку и возвращает её идентификатор
+    /// Создать умную ссылку
     /// </summary>
+    /// <remarks>
+    /// Создаёт редактируемую конфигурацию умной ссылки и возвращает её ID
+    /// </remarks>
+    /// <param name="request">Полная конфигурация создаваемой умной ссылки</param>
+    /// <param name="useCase">Сценарий создания умной ссылки</param>
+    /// <param name="cancellationToken">Токен отмены HTTP-запроса</param>
+    /// <returns>Результат создания умной ссылки</returns>
     private static async Task<IResult> CreateSmartLinkAsync(
         CreateSmartLinkRequest request,
         CreateSmartLinkUseCase useCase,
@@ -57,7 +66,9 @@ public static class SmartLinkEndpoints
             request.IsActive,
             rules);
 
-        var id = await useCase.ExecuteAsync(applicationRequest, cancellationToken);
+        var id = await useCase.ExecuteAsync(
+            applicationRequest,
+            cancellationToken);
 
         return Results.Created(
             $"/api/smart-links/{id}",
@@ -65,8 +76,15 @@ public static class SmartLinkEndpoints
     }
 
     /// <summary>
-    /// Возвращает умную ссылку по идентификатору
+    /// Получить умную ссылку
     /// </summary>
+    /// <remarks>
+    /// Возвращает текущую редактируемую конфигурацию умной ссылки с правилами
+    /// </remarks>
+    /// <param name="id">ID умной ссылки</param>
+    /// <param name="useCase">Сценарий чтения умной ссылки</param>
+    /// <param name="cancellationToken">Токен отмены HTTP-запроса</param>
+    /// <returns>Текущая конфигурация умной ссылки</returns>
     private static async Task<IResult> GetSmartLinkAsync(
         Guid id,
         GetSmartLinkUseCase useCase,
@@ -93,8 +111,16 @@ public static class SmartLinkEndpoints
     }
 
     /// <summary>
-    /// Полностью заменяет конфигурацию умной ссылки
+    /// Изменить умную ссылку
     /// </summary>
+    /// <remarks>
+    /// Полностью заменяет редактируемую конфигурацию и правила умной ссылки
+    /// </remarks>
+    /// <param name="id">ID изменяемой умной ссылки</param>
+    /// <param name="request">Новая полная конфигурация умной ссылки</param>
+    /// <param name="useCase">Сценарий изменения умной ссылки</param>
+    /// <param name="cancellationToken">Токен отмены HTTP-запроса</param>
+    /// <returns>Результат изменения умной ссылки</returns>
     private static async Task<IResult> UpdateSmartLinkAsync(
         Guid id,
         UpdateSmartLinkRequest request,
@@ -118,14 +144,23 @@ public static class SmartLinkEndpoints
             request.IsActive,
             rules);
 
-        await useCase.ExecuteAsync(applicationRequest, cancellationToken);
+        await useCase.ExecuteAsync(
+            applicationRequest,
+            cancellationToken);
 
         return Results.NoContent();
     }
 
     /// <summary>
-    /// Публикует текущую конфигурацию умной ссылки
+    /// Опубликовать умную ссылку
     /// </summary>
+    /// <remarks>
+    /// Проверяет JSON DSL и публикует текущую конфигурацию с новой глобальной ревизией
+    /// </remarks>
+    /// <param name="id">ID публикуемой умной ссылки</param>
+    /// <param name="useCase">Сценарий публикации умной ссылки</param>
+    /// <param name="cancellationToken">Токен отмены HTTP-запроса</param>
+    /// <returns>Новая глобальная ревизия опубликованной конфигурации</returns>
     private static async Task<IResult> PublishSmartLinkAsync(
         Guid id,
         PublishSmartLinkUseCase useCase,

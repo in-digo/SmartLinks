@@ -1,6 +1,7 @@
 namespace SmartLinks.Management.Api.Contracts.SmartLinks;
 
 /// <summary>
-/// Описывает результат публикации умной ссылки
+/// Результат публикации умной ссылки
 /// </summary>
+/// <param name="Revision">Новая глобальная ревизия опубликованной конфигурации</param>
 public sealed record PublishSmartLinkResponse(long Revision);

@@ -34,6 +34,10 @@ builder.Services.AddAuthorization();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
+    var xmlDocumentationFile =  $"{typeof(Program).Assembly.GetName().Name}.xml";
+    var xmlDocumentationPath = Path.Combine(AppContext.BaseDirectory, xmlDocumentationFile);
+    options.IncludeXmlComments(xmlDocumentationPath);
+
     options.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "SmartLinks Management API",
@@ -76,7 +80,9 @@ app.MapPublishedConfigurationEndpoints();
 
 app.Run();
 
-// Открывает точку входа Management API для интеграционных тестов
+/// <summary>
+/// Открывает точку входа Management API для интеграционных тестов
+/// </summary>
 public partial class Program
 {
 }

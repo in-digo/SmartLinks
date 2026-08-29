@@ -10,8 +10,9 @@ public static class PublishedConfigurationEndpoints
     /// <summary>
     /// Регистрирует внутренние endpoints snapshot и change feed
     /// </summary>
-    public static IEndpointRouteBuilder MapPublishedConfigurationEndpoints(
-        this IEndpointRouteBuilder endpoints)
+    /// <param name="endpoints">Построитель маршрутов приложения</param>
+    /// <returns>Построитель маршрутов приложения</returns>
+    public static IEndpointRouteBuilder MapPublishedConfigurationEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet(
             "/internal/configurations/snapshot",
@@ -25,11 +26,15 @@ public static class PublishedConfigurationEndpoints
     }
 
     /// <summary>
-    /// Возвращает полный snapshot опубликованных конфигураций
+    /// Получить полный snapshot
     /// </summary>
-    private static async Task<IResult> GetSnapshotAsync(
-        IPublishedConfigurationReader reader,
-        CancellationToken cancellationToken)
+    /// <remarks>
+    /// Возвращает текущие опубликованные конфигурации и глобальную high-water revision
+    /// </remarks>
+    /// <param name="reader">Reader опубликованных конфигураций</param>
+    /// <param name="cancellationToken">Токен отмены HTTP-запроса</param>
+    /// <returns>Полный snapshot опубликованных конфигураций</returns>
+    private static async Task<IResult> GetSnapshotAsync(IPublishedConfigurationReader reader, CancellationToken cancellationToken)
     {
         var snapshot = await reader.GetSnapshotAsync(cancellationToken);
 
@@ -37,8 +42,16 @@ public static class PublishedConfigurationEndpoints
     }
 
     /// <summary>
-    /// Возвращает последовательные изменения после указанной ревизии
+    /// Получить изменения конфигураций
     /// </summary>
+    /// <remarks>
+    /// Возвращает упорядоченные изменения строго после указанной глобальной ревизии
+    /// </remarks>
+    /// <param name="afterRevision">Ревизия, после которой возвращаются изменения</param>
+    /// <param name="limit">Максимальное количество возвращаемых изменений</param>
+    /// <param name="reader">Reader опубликованных конфигураций</param>
+    /// <param name="cancellationToken">Токен отмены HTTP-запроса</param>
+    /// <returns>Последовательные изменения опубликованных конфигураций</returns>
     private static async Task<IResult> GetChangesAsync(
         long afterRevision,
         int limit,
