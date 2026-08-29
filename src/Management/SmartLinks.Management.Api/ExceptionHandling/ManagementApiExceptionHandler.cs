@@ -34,6 +34,10 @@ public sealed class ManagementApiExceptionHandler : IExceptionHandler
     {
         return exception switch
         {
+            SmartLinkNotFoundException => Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Умная ссылка не найдена",
+                detail: exception.Message),
             SmartLinkSlugAlreadyExistsException => Results.Problem(
                 statusCode: StatusCodes.Status409Conflict,
                 title: "Умная ссылка уже существует",

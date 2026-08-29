@@ -5,6 +5,7 @@ using SmartLinks.Management.Api.Endpoints;
 using SmartLinks.Management.Api.ExceptionHandling;
 using SmartLinks.Management.Application.SmartLinks.Create;
 using SmartLinks.Management.Infrastructure.DependencyInjection;
+using SmartLinks.Management.Application.SmartLinks.Queries;
 
 const string apiKeyAuthenticationScheme = "ApiKey";
 
@@ -17,6 +18,7 @@ builder.Services.AddExceptionHandler<ManagementApiExceptionHandler>();
 builder.Services.AddHealthChecks();
 builder.Services.AddManagementInfrastructure(connectionString);
 builder.Services.AddScoped<CreateSmartLinkUseCase>();
+builder.Services.AddScoped<GetSmartLinkUseCase>();
 builder.Services
     .AddAuthentication(apiKeyAuthenticationScheme)
     .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(apiKeyAuthenticationScheme, _ => { });

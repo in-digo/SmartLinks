@@ -1,5 +1,6 @@
 using SmartLinks.Management.Api.Contracts.SmartLinks;
 using SmartLinks.Management.Application.SmartLinks.Models;
+using SmartLinks.Management.Application.SmartLinks.Queries;
 using ApplicationCreateSmartLinkRequest = SmartLinks.Management.Application.SmartLinks.Create.CreateSmartLinkRequest;
 using CreateSmartLinkUseCase = SmartLinks.Management.Application.SmartLinks.Create.CreateSmartLinkUseCase;
 
@@ -17,6 +18,8 @@ public static class SmartLinkEndpoints
     {
         endpoints.MapPost("/api/smart-links", CreateSmartLinkAsync)
             .RequireAuthorization();
+
+        endpoints.MapGet("/api/smart-links/{id:guid}", GetSmartLinkAsync);
 
         return endpoints;
     }
@@ -48,5 +51,33 @@ public static class SmartLinkEndpoints
         var id = await useCase.ExecuteAsync(applicationRequest, cancellationToken);
 
         return Results.Created($"/api/smart-links/{id}", new CreateSmartLinkResponse(id));
+    }
+
+    /// <summary>
+    /// Возвращает умную ссылку по идентификатору
+    /// </summary>
+    private static async Task<IResult> GetSmartLinkAsync(
+        Guid id,
+        GetSmartLinkUseCase useCase,
+        CancellationToken cancellationToken)
+    {
+        var smartLink = await useCase.ExecuteAsync(id, cancellationToken);
+
+        var rules = smartLink.Rules
+            .Select(rule => new SmartLinkRuleResponse(
+                rule.Priority,
+                rule.IsEnabled,
+                rule.TargetUrl,
+                rule.ConditionDsl))
+            .ToArray();
+
+        var response = new GetSmartLinkResponse(
+            smartLink.Id,
+            smartLink.Slug,
+            smartLink.DefaultUrl,
+            smartLink.IsActive,
+            rules);
+
+        return Results.Ok(response);
     }
 }

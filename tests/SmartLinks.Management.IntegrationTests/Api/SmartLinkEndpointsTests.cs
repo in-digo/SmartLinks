@@ -179,6 +179,76 @@ public sealed class SmartLinkEndpointsTests : IClassFixture<PostgreSqlFixture>, 
     }
 
     /// <summary>
+    /// Проверяет получение существующей умной ссылки без API-ключа
+    /// </summary>
+    [Fact]
+    public async Task GetEndpointReturnsSmartLinkWhenSmartLinkExists()
+    {
+        var createRequest = CreateValidRequest("read-existing-smart-link");
+
+        using var createClient = CreateClientWithApiKey(_apiKey);
+        using var createResponse = await createClient.PostAsJsonAsync("/api/smart-links", createRequest);
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        var createResult = await createResponse.Content.ReadFromJsonAsync<CreateSmartLinkTestResponse>();
+
+        Assert.NotNull(createResult);
+
+        // Читающие операции Management API доступны без API-ключа
+        using var getClient = _factory.CreateClient();
+        using var getResponse = await getClient.GetAsync($"/api/smart-links/{createResult.Id}");
+
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+
+        var smartLink = await getResponse.Content.ReadFromJsonAsync<GetSmartLinkTestResponse>();
+
+        Assert.NotNull(smartLink);
+        Assert.Equal(createResult.Id, smartLink.Id);
+        Assert.Equal(createRequest.Slug, smartLink.Slug);
+        Assert.Equal(createRequest.DefaultUrl, smartLink.DefaultUrl);
+        Assert.Equal(createRequest.IsActive, smartLink.IsActive);
+        Assert.Collection(
+            smartLink.Rules,
+            rule =>
+            {
+                Assert.Equal(10, rule.Priority);
+                Assert.True(rule.IsEnabled);
+                Assert.Equal("https://example.com/kazakhstan", rule.TargetUrl);
+                Assert.Equal(CreateCountryDsl("KZ"), rule.ConditionDsl);
+            },
+            rule =>
+            {
+                Assert.Equal(20, rule.Priority);
+                Assert.False(rule.IsEnabled);
+                Assert.Equal("https://example.com/germany", rule.TargetUrl);
+                Assert.Equal(CreateCountryDsl("DE"), rule.ConditionDsl);
+            });
+    }
+
+    /// <summary>
+    /// Проверяет Problem Details при чтении отсутствующей умной ссылки
+    /// </summary>
+    [Fact]
+    public async Task GetEndpointReturnsNotFoundWhenSmartLinkDoesNotExist()
+    {
+        var id = Guid.NewGuid();
+
+        // Читающие операции Management API доступны без API-ключа
+        using var client = _factory.CreateClient();
+        using var response = await client.GetAsync($"/api/smart-links/{id}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        var problemDetails = await ReadProblemDetailsAsync(response);
+
+        Assert.Equal(StatusCodes.Status404NotFound, problemDetails.Status);
+        Assert.Equal("Умная ссылка не найдена", problemDetails.Title);
+        Assert.NotNull(problemDetails.Detail);
+        Assert.Contains(id.ToString(), problemDetails.Detail);
+    }
+
+    /// <summary>
     /// Создаёт HTTP-клиент с указанным API-ключом
     /// </summary>
     private HttpClient CreateClientWithApiKey(string apiKey)
@@ -297,6 +367,30 @@ public sealed class SmartLinkEndpointsTests : IClassFixture<PostgreSqlFixture>, 
     /// Описывает правило в тестовом HTTP-запросе
     /// </summary>
     private sealed record SmartLinkRuleTestRequest(
+        int Priority,
+        bool IsEnabled,
+        string TargetUrl,
+        string ConditionDsl);
+
+    /// <summary>
+    /// Описывает тестовый результат создания умной ссылки
+    /// </summary>
+    private sealed record CreateSmartLinkTestResponse(Guid Id);
+
+    /// <summary>
+    /// Описывает тестовый результат чтения умной ссылки
+    /// </summary>
+    private sealed record GetSmartLinkTestResponse(
+        Guid Id,
+        string Slug,
+        string DefaultUrl,
+        bool IsActive,
+        SmartLinkRuleTestResponse[] Rules);
+
+    /// <summary>
+    /// Описывает правило в тестовом HTTP-ответе
+    /// </summary>
+    private sealed record SmartLinkRuleTestResponse(
         int Priority,
         bool IsEnabled,
         string TargetUrl,
