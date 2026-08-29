@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using SmartLinks.Management.Infrastructure.Persistence;
 using SmartLinks.Management.IntegrationTests.Infrastructure;
+using SmartLinks.Contracts.Configurations;
 
 namespace SmartLinks.Management.IntegrationTests.Api;
 
@@ -536,6 +537,128 @@ public sealed class SmartLinkEndpointsTests : IClassFixture<PostgreSqlFixture>, 
     }
 
     /// <summary>
+    /// Проверяет получение полного snapshot опубликованных конфигураций без API-ключа
+    /// </summary>
+    [Fact]
+    public async Task SnapshotEndpointReturnsPublishedConfigurationsWithoutApiKey()
+    {
+        var createRequest = CreateValidRequest("snapshot-smart-link");
+        var id = await CreateSmartLinkAsync(createRequest.Slug);
+        var revision = await PublishSmartLinkAsync(id);
+
+        // Внутренний читающий endpoint доступен без API-ключа
+        using var client = _factory.CreateClient();
+        using var response = await client.GetAsync("/internal/configurations/snapshot");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var snapshot = await response.Content.ReadFromJsonAsync<PublishedSmartLinksSnapshot>();
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(revision, snapshot.Revision);
+
+        var configuration = Assert.Single(
+            snapshot.Configurations,
+            configuration => configuration.Id == id);
+
+        Assert.Equal(createRequest.Slug, configuration.Slug);
+        Assert.Equal(createRequest.DefaultUrl, configuration.DefaultUrl);
+        Assert.Equal(createRequest.IsActive, configuration.IsActive);
+        Assert.Collection(
+            configuration.Rules,
+            rule =>
+            {
+                Assert.Equal(10, rule.Priority);
+                Assert.True(rule.IsEnabled);
+                Assert.Equal("https://example.com/kazakhstan", rule.TargetUrl);
+                Assert.Equal(CreateCountryDsl("KZ"), rule.ConditionDsl);
+            },
+            rule =>
+            {
+                Assert.Equal(20, rule.Priority);
+                Assert.False(rule.IsEnabled);
+                Assert.Equal("https://example.com/germany", rule.TargetUrl);
+                Assert.Equal(CreateCountryDsl("DE"), rule.ConditionDsl);
+            });
+    }
+
+    /// <summary>
+    /// Проверяет последовательность, эксклюзивную ревизию и лимит change feed
+    /// </summary>
+    [Fact]
+    public async Task ChangesEndpointReturnsOrderedChangesAfterRevisionAndHonorsLimit()
+    {
+        var firstId = await CreateSmartLinkAsync("first-change-feed-link");
+        var firstRevision = await PublishSmartLinkAsync(firstId);
+
+        var secondId = await CreateSmartLinkAsync("second-change-feed-link");
+        var secondRevision = await PublishSmartLinkAsync(secondId);
+
+        var thirdId = await CreateSmartLinkAsync("third-change-feed-link");
+        var thirdRevision = await PublishSmartLinkAsync(thirdId);
+
+        // Запрашиваем только первое изменение после первой ревизии
+        using var client = _factory.CreateClient();
+        using var firstResponse = await client.GetAsync($"/internal/configurations/changes?afterRevision={firstRevision}&limit=1");
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+
+        var firstChanges = await firstResponse.Content.ReadFromJsonAsync<ConfigurationChange[]>();
+
+        Assert.NotNull(firstChanges);
+
+        var firstChange = Assert.Single(firstChanges);
+
+        Assert.Equal(secondRevision, firstChange.Revision);
+        Assert.Equal(secondId, firstChange.Configuration.Id);
+
+        // Продолжаем чтение после полученной ревизии
+        using var secondResponse = await client.GetAsync($"/internal/configurations/changes?afterRevision={secondRevision}&limit=10");
+
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+
+        var secondChanges = await secondResponse.Content.ReadFromJsonAsync<ConfigurationChange[]>();
+
+        Assert.NotNull(secondChanges);
+
+        var secondChange = Assert.Single(secondChanges);
+
+        Assert.Equal(thirdRevision, secondChange.Revision);
+        Assert.Equal(thirdId, secondChange.Configuration.Id);
+    }
+
+    /// <summary>
+    /// Проверяет Problem Details для некорректных параметров change feed
+    /// </summary>
+    [Fact]
+    public async Task ChangesEndpointReturnsBadRequestWhenQueryParametersAreInvalid()
+    {
+        using var client = _factory.CreateClient();
+
+        using var negativeRevisionResponse = await client.GetAsync("/internal/configurations/changes?afterRevision=-1&limit=10");
+
+        Assert.Equal(HttpStatusCode.BadRequest, negativeRevisionResponse.StatusCode);
+
+        var negativeRevisionProblem = await ReadProblemDetailsAsync(negativeRevisionResponse);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, negativeRevisionProblem.Status);
+        Assert.Equal("Некорректный запрос", negativeRevisionProblem.Title);
+        Assert.NotNull(negativeRevisionProblem.Detail);
+        Assert.Contains("Ревизия", negativeRevisionProblem.Detail);
+
+        using var zeroLimitResponse = await client.GetAsync("/internal/configurations/changes?afterRevision=0&limit=0");
+
+        Assert.Equal(HttpStatusCode.BadRequest, zeroLimitResponse.StatusCode);
+
+        var zeroLimitProblem = await ReadProblemDetailsAsync(zeroLimitResponse);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, zeroLimitProblem.Status);
+        Assert.Equal("Некорректный запрос", zeroLimitProblem.Title);
+        Assert.NotNull(zeroLimitProblem.Detail);
+        Assert.Contains("Лимит", zeroLimitProblem.Detail);
+    }
+
+    /// <summary>
     /// Создаёт HTTP-клиент с указанным API-ключом
     /// </summary>
     private HttpClient CreateClientWithApiKey(string apiKey)
@@ -587,6 +710,25 @@ public sealed class SmartLinkEndpointsTests : IClassFixture<PostgreSqlFixture>, 
         Assert.NotNull(result);
 
         return result.Id;
+    }
+
+    /// <summary>
+    /// Публикует умную ссылку через Management API и возвращает ревизию
+    /// </summary>
+    private async Task<long> PublishSmartLinkAsync(Guid id)
+    {
+        using var client = CreateClientWithApiKey(_apiKey);
+        using var response = await client.PostAsync(
+            $"/api/smart-links/{id}/publish",
+            null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<PublishSmartLinkTestResponse>();
+
+        Assert.NotNull(result);
+
+        return result.Revision;
     }
 
     /// <summary>

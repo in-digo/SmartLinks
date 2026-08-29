@@ -43,6 +43,7 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions
 });
 
 app.MapSmartLinkEndpoints();
+app.MapPublishedConfigurationEndpoints();
 
 app.Run();
 
