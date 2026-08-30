@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using SmartLinks.Redirect.Infrastructure.DependencyInjection;
 using SmartLinks.Redirect.Infrastructure.Management;
+using SmartLinks.Redirect.Application.DependencyInjection;
+using SmartLinks.Redirect.Infrastructure.Synchronization;
 using System.Net;
 using System.Text;
 using Microsoft.Extensions.Http;
@@ -89,6 +91,23 @@ public sealed class RedirectInfrastructureServiceCollectionExtensionsTests
             () => services.AddRedirectInfrastructure(managementApiBaseAddress));
 
         Assert.Equal("managementApiBaseAddress", exception.ParamName);
+    }
+
+    /// <summary>
+    /// Проверяет регистрацию synchronizer конфигураций
+    /// </summary>
+    [Fact]
+    public void AddRedirectInfrastructureRegistersConfigurationSynchronizer()
+    {
+        var services = new ServiceCollection();
+
+        services.AddRedirectApplication();
+        services.AddRedirectInfrastructure(new Uri("https://management.test"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var synchronizer = serviceProvider.GetRequiredService<ConfigurationSynchronizer>();
+
+        Assert.NotNull(synchronizer);
     }
 
     private sealed class StubHttpMessageHandler : HttpMessageHandler

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using SmartLinks.Redirect.Infrastructure.Management;
+using SmartLinks.Redirect.Infrastructure.Synchronization;
 
 namespace SmartLinks.Redirect.Infrastructure.DependencyInjection;
 
@@ -21,6 +22,8 @@ public static class RedirectInfrastructureServiceCollectionExtensions
 
         services.AddHttpClient<IManagementConfigurationClient, ManagementConfigurationClient>(
             httpClient => httpClient.BaseAddress = managementApiBaseAddress);
+
+        services.AddSingleton<ConfigurationSynchronizer>();
 
         return services;
     }
