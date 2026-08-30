@@ -1,4 +1,7 @@
+using SmartLinks.Redirect.Application.DependencyInjection;
+
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddRedirectApplication();
 var app = builder.Build();
 
 app.Run();
