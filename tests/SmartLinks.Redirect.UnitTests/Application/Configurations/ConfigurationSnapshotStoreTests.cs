@@ -217,6 +217,261 @@ public sealed class ConfigurationSnapshotStoreTests
     }
 
     /// <summary>
+    /// Проверяет добавление последовательного изменения и продвижение текущей ревизии
+    /// </summary>
+    [Fact]
+    public void ApplyChangesAddsConfigurationAndAdvancesRevision()
+    {
+        var store = CreateStore();
+        store.ReplaceSnapshot(CreateSnapshot(
+            3,
+            CreateConfiguration("existing-link")));
+        IReadOnlyList<ConfigurationChange> changes =
+        [
+            new ConfigurationChange(
+                4,
+                CreateConfiguration("new-link"))
+        ];
+
+        store.ApplyChanges(changes);
+
+        Assert.Equal(4L, store.Revision);
+        Assert.True(store.TryGetBySlug("existing-link", out _));
+        Assert.True(store.TryGetBySlug("new-link", out _));
+    }
+
+    /// <summary>
+    /// Проверяет применение нескольких непрерывных изменений по порядку ревизий
+    /// </summary>
+    [Fact]
+    public void ApplyChangesAppliesContiguousBatchInRevisionOrder()
+    {
+        var store = CreateStore();
+        store.ReplaceSnapshot(CreateSnapshot(
+            3,
+            CreateConfiguration("existing-link")));
+        IReadOnlyList<ConfigurationChange> changes =
+        [
+            new ConfigurationChange(
+                4,
+                CreateConfiguration("fourth-link")),
+            new ConfigurationChange(
+                5,
+                CreateConfiguration("fifth-link"))
+        ];
+
+        store.ApplyChanges(changes);
+
+        Assert.Equal(5L, store.Revision);
+        Assert.True(store.TryGetBySlug("existing-link", out _));
+        Assert.True(store.TryGetBySlug("fourth-link", out _));
+        Assert.True(store.TryGetBySlug("fifth-link", out _));
+    }
+
+    /// <summary>
+    /// Проверяет замену опубликованной конфигурации существующей ссылки
+    /// </summary>
+    [Fact]
+    public void ApplyChangesUpdatesExistingConfiguration()
+    {
+        var store = CreateStore();
+        var id = Guid.NewGuid();
+        store.ReplaceSnapshot(CreateSnapshot(
+            1,
+            CreateConfiguration(
+                "updated-link",
+                id: id,
+                defaultUrl: "https://example.com/old")));
+        IReadOnlyList<ConfigurationChange> changes =
+        [
+            new ConfigurationChange(
+                2,
+                CreateConfiguration(
+                    "updated-link",
+                    id: id,
+                    defaultUrl: "https://example.com/new"))
+        ];
+
+        store.ApplyChanges(changes);
+
+        Assert.Equal(2L, store.Revision);
+        Assert.True(store.TryGetBySlug("updated-link", out var configuration));
+        Assert.NotNull(configuration);
+        Assert.Equal("https://example.com/new", configuration.DefaultUrl);
+    }
+
+    /// <summary>
+    /// Проверяет удаление предыдущего slug при переименовании опубликованной ссылки
+    /// </summary>
+    [Fact]
+    public void ApplyChangesRemovesPreviousSlugWhenConfigurationIsRenamed()
+    {
+        var store = CreateStore();
+        var id = Guid.NewGuid();
+        store.ReplaceSnapshot(CreateSnapshot(
+            1,
+            CreateConfiguration(
+                "old-slug",
+                id: id)));
+        IReadOnlyList<ConfigurationChange> changes =
+        [
+            new ConfigurationChange(
+                2,
+                CreateConfiguration(
+                    "new-slug",
+                    id: id))
+        ];
+
+        store.ApplyChanges(changes);
+
+        Assert.Equal(2L, store.Revision);
+        Assert.False(store.TryGetBySlug("old-slug", out _));
+        Assert.True(store.TryGetBySlug("new-slug", out _));
+    }
+
+    /// <summary>
+    /// Проверяет игнорирование изменений старых и уже применённых ревизий
+    /// </summary>
+    [Fact]
+    public void ApplyChangesIgnoresOldAndRepeatedRevisions()
+    {
+        var store = CreateStore();
+        store.ReplaceSnapshot(CreateSnapshot(
+            5,
+            CreateConfiguration("current-link")));
+        IReadOnlyList<ConfigurationChange> changes =
+        [
+            new ConfigurationChange(
+                4,
+                CreateConfiguration("older-link")),
+            new ConfigurationChange(
+                5,
+                CreateConfiguration("repeated-link"))
+        ];
+
+        store.ApplyChanges(changes);
+
+        Assert.Equal(5L, store.Revision);
+        Assert.True(store.TryGetBySlug("current-link", out _));
+        Assert.False(store.TryGetBySlug("older-link", out _));
+        Assert.False(store.TryGetBySlug("repeated-link", out _));
+    }
+
+    /// <summary>
+    /// Проверяет игнорирование повторной ревизии внутри одного пакета изменений
+    /// </summary>
+    [Fact]
+    public void ApplyChangesIgnoresRepeatedRevisionWithinBatch()
+    {
+        var store = CreateStore();
+        store.ReplaceSnapshot(CreateSnapshot(
+            5,
+            CreateConfiguration("current-link")));
+        IReadOnlyList<ConfigurationChange> changes =
+        [
+            new ConfigurationChange(
+                6,
+                CreateConfiguration("sixth-link")),
+            new ConfigurationChange(
+                6,
+                CreateConfiguration("repeated-sixth-link"))
+        ];
+
+        store.ApplyChanges(changes);
+
+        Assert.Equal(6L, store.Revision);
+        Assert.True(store.TryGetBySlug("sixth-link", out _));
+        Assert.False(store.TryGetBySlug("repeated-sixth-link", out _));
+    }
+
+    /// <summary>
+    /// Проверяет отклонение всего пакета при пропуске ожидаемой ревизии
+    /// </summary>
+    [Fact]
+    public void ApplyChangesWithRevisionGapPreservesCurrentSnapshot()
+    {
+        var store = CreateStore();
+        store.ReplaceSnapshot(CreateSnapshot(
+            5,
+            CreateConfiguration("current-link")));
+        IReadOnlyList<ConfigurationChange> changes =
+        [
+            new ConfigurationChange(
+                6,
+                CreateConfiguration("sixth-link")),
+            new ConfigurationChange(
+                8,
+                CreateConfiguration("eighth-link"))
+        ];
+
+        Assert.Throws<InvalidOperationException>(() =>
+            store.ApplyChanges(changes));
+
+        Assert.Equal(5L, store.Revision);
+        Assert.True(store.TryGetBySlug("current-link", out _));
+        Assert.False(store.TryGetBySlug("sixth-link", out _));
+        Assert.False(store.TryGetBySlug("eighth-link", out _));
+    }
+
+    /// <summary>
+    /// Проверяет сохранение текущей модели при ошибке компиляции изменения
+    /// </summary>
+    [Fact]
+    public void ApplyChangesWithInvalidDslPreservesCurrentSnapshot()
+    {
+        var store = CreateStore();
+        store.ReplaceSnapshot(CreateSnapshot(
+            5,
+            CreateConfiguration("current-link")));
+        IReadOnlyList<ConfigurationChange> changes =
+        [
+            new ConfigurationChange(
+                6,
+                CreateConfiguration("sixth-link")),
+            new ConfigurationChange(
+                7,
+                CreateConfiguration(
+                    "invalid-link",
+                    """
+                    {
+                      "dslVersion": 2,
+                      "condition": {
+                        "type": "country",
+                        "parameters": {
+                          "countryCode": "NL"
+                        }
+                      }
+                    }
+                    """))
+        ];
+
+        Assert.Throws<InvalidOperationException>(() =>
+            store.ApplyChanges(changes));
+
+        Assert.Equal(5L, store.Revision);
+        Assert.True(store.TryGetBySlug("current-link", out _));
+        Assert.False(store.TryGetBySlug("sixth-link", out _));
+        Assert.False(store.TryGetBySlug("invalid-link", out _));
+    }
+
+    /// <summary>
+    /// Проверяет отсутствие изменений при пустом пакете
+    /// </summary>
+    [Fact]
+    public void ApplyChangesWithEmptyCollectionDoesNotChangeSnapshot()
+    {
+        var store = CreateStore();
+        store.ReplaceSnapshot(CreateSnapshot(
+            5,
+            CreateConfiguration("current-link")));
+
+        store.ApplyChanges(Array.Empty<ConfigurationChange>());
+
+        Assert.Equal(5L, store.Revision);
+        Assert.True(store.TryGetBySlug("current-link", out _));
+    }
+
+    /// <summary>
     /// Создаёт хранилище с поддержкой тестового условия страны
     /// </summary>
     private static ConfigurationSnapshotStore CreateStore()
@@ -242,18 +497,21 @@ public sealed class ConfigurationSnapshotStoreTests
     /// </summary>
     private static SmartLinkConfigurationSnapshot CreateConfiguration(
         string slug,
-        string? conditionDsl = null)
+        string? conditionDsl = null,
+        Guid? id = null,
+        string defaultUrl = "https://example.com/default",
+        string targetUrl = "https://example.com/netherlands")
     {
         return new SmartLinkConfigurationSnapshot(
-            Guid.NewGuid(),
+            id ?? Guid.NewGuid(),
             slug,
-            "https://example.com/default",
+            defaultUrl,
             true,
             [
                 new SmartLinkRuleSnapshot(
                     10,
                     true,
-                    "https://example.com/netherlands",
+                    targetUrl,
                     conditionDsl ?? CreateDsl("NL"))
             ]);
     }
