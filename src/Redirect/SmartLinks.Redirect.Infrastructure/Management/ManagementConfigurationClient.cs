@@ -9,6 +9,7 @@ namespace SmartLinks.Redirect.Infrastructure.Management;
 public sealed class ManagementConfigurationClient
 {
     private const string _snapshotPath = "/internal/configurations/snapshot";
+    private const string _changesPath = "/internal/configurations/changes";
 
     private readonly HttpClient _httpClient;
 
@@ -34,5 +35,27 @@ public sealed class ManagementConfigurationClient
             _snapshotPath,
             cancellationToken)
             ?? throw new InvalidOperationException("Management API вернул пустой snapshot");
+    }
+
+    /// <summary>
+    /// Получает изменения опубликованных конфигураций после указанной ревизии
+    /// </summary>
+    public async Task<IReadOnlyList<ConfigurationChange>> GetChangesAsync(
+        long afterRevision,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        if (afterRevision < 0)
+            throw new ArgumentOutOfRangeException(nameof(afterRevision), afterRevision, "Ревизия не может быть отрицательной");
+
+        if (limit <= 0)
+            throw new ArgumentOutOfRangeException(nameof(limit), limit, "Лимит должен быть положительным");
+
+        var requestPath = FormattableString.Invariant($"{_changesPath}?afterRevision={afterRevision}&limit={limit}");
+
+        return await _httpClient.GetFromJsonAsync<ConfigurationChange[]>(
+            requestPath,
+            cancellationToken)
+            ?? throw new InvalidOperationException("Management API вернул пустой список изменений");
     }
 }
