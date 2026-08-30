@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Redirect\SmartLinks.Redirect.Application\SmartLinks.Redirect.Application.csproj" />
+    <ProjectReference Include="..\..\src\Redirect\SmartLinks.Redirect.Infrastructure\SmartLinks.Redirect.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
