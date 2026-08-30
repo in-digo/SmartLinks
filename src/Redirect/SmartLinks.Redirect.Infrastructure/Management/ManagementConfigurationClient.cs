@@ -6,7 +6,7 @@ namespace SmartLinks.Redirect.Infrastructure.Management;
 /// <summary>
 /// Получает опубликованные конфигурации из Management API
 /// </summary>
-public sealed class ManagementConfigurationClient
+public sealed class ManagementConfigurationClient : IManagementConfigurationClient
 {
     private const string _snapshotPath = "/internal/configurations/snapshot";
     private const string _changesPath = "/internal/configurations/changes";
