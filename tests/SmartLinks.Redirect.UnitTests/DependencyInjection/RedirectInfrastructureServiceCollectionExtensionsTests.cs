@@ -6,6 +6,7 @@ using SmartLinks.Redirect.Infrastructure.Synchronization;
 using System.Net;
 using System.Text;
 using Microsoft.Extensions.Http;
+using Microsoft.Extensions.Hosting;
 
 namespace SmartLinks.Redirect.UnitTests.DependencyInjection;
 
@@ -108,6 +109,25 @@ public sealed class RedirectInfrastructureServiceCollectionExtensionsTests
         var synchronizer = serviceProvider.GetRequiredService<ConfigurationSynchronizer>();
 
         Assert.NotNull(synchronizer);
+    }
+
+    /// <summary>
+    /// Проверяет регистрацию фонового worker синхронизации конфигураций
+    /// </summary>
+    [Fact]
+    public void AddRedirectInfrastructureRegistersConfigurationSynchronizationWorker()
+    {
+        var services = new ServiceCollection();
+
+        services.AddRedirectApplication();
+        services.AddRedirectInfrastructure(new Uri("https://management.test"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var workers = serviceProvider
+            .GetServices<IHostedService>()
+            .OfType<ConfigurationSynchronizationWorker>();
+
+        Assert.Single(workers);
     }
 
     private sealed class StubHttpMessageHandler : HttpMessageHandler
