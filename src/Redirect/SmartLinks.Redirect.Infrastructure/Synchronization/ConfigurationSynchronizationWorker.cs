@@ -11,6 +11,7 @@ public sealed class ConfigurationSynchronizationWorker : BackgroundService
     private readonly ConfigurationSynchronizer _synchronizer;
     private readonly ConfigurationSynchronizationOptions _options;
     private readonly TimeProvider _timeProvider;
+    private readonly ConfigurationSynchronizationRetryDelayProvider _retryDelayProvider;
 
     /// <summary>
     /// Инициализирует фоновую синхронизацию
@@ -18,15 +19,18 @@ public sealed class ConfigurationSynchronizationWorker : BackgroundService
     public ConfigurationSynchronizationWorker(
         ConfigurationSynchronizer synchronizer,
         IOptions<ConfigurationSynchronizationOptions> options,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ConfigurationSynchronizationRetryDelayProvider retryDelayProvider)
     {
         ArgumentNullException.ThrowIfNull(synchronizer);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(retryDelayProvider);
 
         _synchronizer = synchronizer;
         _options = options.Value;
         _timeProvider = timeProvider;
+        _retryDelayProvider = retryDelayProvider;
     }
 
     /// <summary>
@@ -34,11 +38,39 @@ public sealed class ConfigurationSynchronizationWorker : BackgroundService
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await _synchronizer.LoadSnapshotAsync(stoppingToken);
+        await ExecuteWithRetryAsync(_synchronizer.LoadSnapshotAsync, stoppingToken);
 
         using var timer = new PeriodicTimer(_options.PollingInterval, _timeProvider);
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
-            await _synchronizer.SynchronizeChangesAsync(_options.ChangeBatchSize, stoppingToken);
+        {
+            await ExecuteWithRetryAsync(
+                cancellationToken => _synchronizer.SynchronizeChangesAsync(_options.ChangeBatchSize, cancellationToken),
+                stoppingToken);
+        }
+    }
+
+    /// <summary>
+    /// Повторяет операцию после временных ошибок Management API
+    /// </summary>
+    private async Task ExecuteWithRetryAsync(Func<CancellationToken, Task> operation, CancellationToken cancellationToken)
+    {
+        var retryAttempt = 1;
+
+        while (true)
+        {
+            try
+            {
+                await operation(cancellationToken);
+                return;
+            }
+            catch (HttpRequestException) when (!cancellationToken.IsCancellationRequested)
+            {
+                var retryDelay = _retryDelayProvider.GetDelay(retryAttempt);
+                retryAttempt++;
+
+                await Task.Delay(retryDelay, _timeProvider, cancellationToken);
+            }
+        }
     }
 }
