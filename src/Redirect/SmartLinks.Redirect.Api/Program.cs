@@ -3,6 +3,7 @@ using SmartLinks.Redirect.Application.DependencyInjection;
 using SmartLinks.Redirect.Infrastructure.DependencyInjection;
 using SmartLinks.Redirect.Infrastructure.HealthChecks;
 using SmartLinks.Redirect.Infrastructure.Synchronization;
+using SmartLinks.Redirect.Api.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +25,8 @@ builder.Services.AddRedirectApplication();
 builder.Services.AddRedirectInfrastructure(managementApiBaseAddress);
 
 var app = builder.Build();
+
+app.UseMiddleware<SmartLinkRedirectMiddleware>();
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
