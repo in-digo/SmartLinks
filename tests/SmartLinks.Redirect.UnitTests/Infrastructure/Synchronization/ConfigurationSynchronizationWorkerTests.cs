@@ -28,7 +28,8 @@ public sealed class ConfigurationSynchronizationWorkerTests
             synchronizer,
             Options.Create(new ConfigurationSynchronizationOptions()),
             TimeProvider.System,
-            CreateRetryDelayProvider());
+            CreateRetryDelayProvider(),
+            new ConfigurationSynchronizationState());
 
         await worker.StartAsync(CancellationToken.None);
 
@@ -48,7 +49,8 @@ public sealed class ConfigurationSynchronizationWorkerTests
             synchronizer,
             Options.Create(new ConfigurationSynchronizationOptions()),
             TimeProvider.System,
-            CreateRetryDelayProvider()));
+            CreateRetryDelayProvider(),
+            new ConfigurationSynchronizationState()));
 
         Assert.Equal("synchronizer", exception.ParamName);
     }
@@ -82,7 +84,12 @@ public sealed class ConfigurationSynchronizationWorkerTests
             ChangeBatchSize = 50
         });
 
-        using var worker = new ConfigurationSynchronizationWorker(synchronizer, options, timeProvider, CreateRetryDelayProvider());
+        using var worker = new ConfigurationSynchronizationWorker(
+            synchronizer,
+            options,
+            timeProvider,
+            CreateRetryDelayProvider(),
+            new ConfigurationSynchronizationState());
 
         await worker.StartAsync(CancellationToken.None);
 
@@ -112,7 +119,8 @@ public sealed class ConfigurationSynchronizationWorkerTests
             CreateSynchronizer(),
             options,
             TimeProvider.System,
-            CreateRetryDelayProvider()));
+            CreateRetryDelayProvider(),
+            new ConfigurationSynchronizationState()));
 
         Assert.Equal("options", exception.ParamName);
     }
@@ -129,7 +137,8 @@ public sealed class ConfigurationSynchronizationWorkerTests
             CreateSynchronizer(),
             Options.Create(new ConfigurationSynchronizationOptions()),
             timeProvider,
-            CreateRetryDelayProvider()));
+            CreateRetryDelayProvider(),
+            new ConfigurationSynchronizationState()));
 
         Assert.Equal("timeProvider", exception.ParamName);
     }
@@ -152,7 +161,12 @@ public sealed class ConfigurationSynchronizationWorkerTests
             ChangeBatchSize = 50
         });
 
-        using var worker = new ConfigurationSynchronizationWorker(synchronizer,  options, timeProvider, CreateRetryDelayProvider());
+        using var worker = new ConfigurationSynchronizationWorker(
+            synchronizer,
+            options,
+            timeProvider,
+            CreateRetryDelayProvider(),
+            new ConfigurationSynchronizationState());
 
         await worker.StartAsync(CancellationToken.None);
 
@@ -185,7 +199,12 @@ public sealed class ConfigurationSynchronizationWorkerTests
             ChangeBatchSize = 50
         });
 
-        using var worker = new ConfigurationSynchronizationWorker(synchronizer, options, timeProvider, CreateRetryDelayProvider());
+        using var worker = new ConfigurationSynchronizationWorker(
+            synchronizer,
+            options,
+            timeProvider,
+            CreateRetryDelayProvider(),
+            new ConfigurationSynchronizationState());
 
         await worker.StartAsync(CancellationToken.None);
         await worker.StopAsync(CancellationToken.None);

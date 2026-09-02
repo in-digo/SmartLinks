@@ -146,6 +146,23 @@ public sealed class RedirectInfrastructureServiceCollectionExtensionsTests
         Assert.NotNull(retryDelayProvider);
     }
 
+    /// <summary>
+    /// Проверяет singleton-регистрацию состояния синхронизации
+    /// </summary>
+    [Fact]
+    public void AddRedirectInfrastructureRegistersSingletonConfigurationSynchronizationState()
+    {
+        var services = new ServiceCollection();
+
+        services.AddRedirectInfrastructure(new Uri("https://management.test"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var firstState = serviceProvider.GetRequiredService<ConfigurationSynchronizationState>();
+        var secondState = serviceProvider.GetRequiredService<ConfigurationSynchronizationState>();
+
+        Assert.Same(firstState, secondState);
+    }
+
     private sealed class StubHttpMessageHandler : HttpMessageHandler
     {
         public Uri? RequestUri { get; private set; }

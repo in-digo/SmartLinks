@@ -12,6 +12,7 @@ public sealed class ConfigurationSynchronizationWorker : BackgroundService
     private readonly ConfigurationSynchronizationOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly ConfigurationSynchronizationRetryDelayProvider _retryDelayProvider;
+    private readonly ConfigurationSynchronizationState _synchronizationState;
 
     /// <summary>
     /// Инициализирует фоновую синхронизацию
@@ -20,17 +21,20 @@ public sealed class ConfigurationSynchronizationWorker : BackgroundService
         ConfigurationSynchronizer synchronizer,
         IOptions<ConfigurationSynchronizationOptions> options,
         TimeProvider timeProvider,
-        ConfigurationSynchronizationRetryDelayProvider retryDelayProvider)
+        ConfigurationSynchronizationRetryDelayProvider retryDelayProvider,
+        ConfigurationSynchronizationState synchronizationState)
     {
         ArgumentNullException.ThrowIfNull(synchronizer);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(retryDelayProvider);
+        ArgumentNullException.ThrowIfNull(synchronizationState);
 
         _synchronizer = synchronizer;
         _options = options.Value;
         _timeProvider = timeProvider;
         _retryDelayProvider = retryDelayProvider;
+        _synchronizationState = synchronizationState;
     }
 
     /// <summary>
@@ -40,6 +44,8 @@ public sealed class ConfigurationSynchronizationWorker : BackgroundService
     {
         await ExecuteWithRetryAsync(_synchronizer.LoadSnapshotAsync, stoppingToken);
 
+        _synchronizationState.MarkReady();
+        
         using var timer = new PeriodicTimer(_options.PollingInterval, _timeProvider);
 
         while (await timer.WaitForNextTickAsync(stoppingToken))

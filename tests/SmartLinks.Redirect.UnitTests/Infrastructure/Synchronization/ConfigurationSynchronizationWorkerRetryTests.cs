@@ -30,15 +30,22 @@ public sealed class ConfigurationSynchronizationWorkerRetryTests
             MaximumRetryDelay = TimeSpan.FromSeconds(2)
         });
         var retryDelayProvider = new ConfigurationSynchronizationRetryDelayProvider(options, new FixedRandom(0.5));
+        var synchronizationState = new ConfigurationSynchronizationState();
 
-        using var worker = new ConfigurationSynchronizationWorker(synchronizer, options, timeProvider, retryDelayProvider);
+        using var worker = new ConfigurationSynchronizationWorker(
+            synchronizer,
+            options,
+            timeProvider,
+            retryDelayProvider,
+            synchronizationState);
         using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
-        await worker.StartAsync(cancellationTokenSource.Token);
+        await worker.StartAsync(CancellationToken.None);
         await client.WaitForSnapshotRequestAsync(cancellationTokenSource.Token);
 
         var retryDelay = await timeProvider.WaitForCreatedTimerAsync(cancellationTokenSource.Token);
         Assert.Equal(TimeSpan.FromSeconds(1), retryDelay);
+        Assert.False(synchronizationState.IsReady);
 
         timeProvider.Advance(retryDelay);
 
@@ -48,8 +55,34 @@ public sealed class ConfigurationSynchronizationWorkerRetryTests
         Assert.Equal(TimeSpan.FromHours(1), pollingDelay);
         Assert.Equal(2, client.SnapshotRequestCount);
         Assert.Same(snapshot, snapshotStore.ReplacedSnapshot);
+        Assert.True(synchronizationState.IsReady);
 
         await worker.StopAsync(CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Проверяет ошибку создания worker без состояния синхронизации
+    /// </summary>
+    [Fact]
+    public void ConstructorWithNullSynchronizationStateThrowsArgumentNullException()
+    {
+        var snapshot = new PublishedSmartLinksSnapshot(7, []);
+        var client = new FailingOnceSnapshotManagementConfigurationClient(snapshot);
+        var snapshotStore = new StubConfigurationSnapshotStore();
+        var synchronizer = new ConfigurationSynchronizer(client, snapshotStore, snapshotStore);
+        var options = Options.Create(new ConfigurationSynchronizationOptions());
+        var timeProvider = new FakeTimeProvider();
+        var retryDelayProvider = new ConfigurationSynchronizationRetryDelayProvider(options, Random.Shared);
+        ConfigurationSynchronizationState synchronizationState = null!;
+
+        var exception = Assert.Throws<ArgumentNullException>(() => new ConfigurationSynchronizationWorker(
+            synchronizer,
+            options,
+            timeProvider,
+            retryDelayProvider,
+            synchronizationState));
+
+        Assert.Equal("synchronizationState", exception.ParamName);
     }
 
     /// <summary>
@@ -71,7 +104,7 @@ public sealed class ConfigurationSynchronizationWorkerRetryTests
         });
         var retryDelayProvider = new ConfigurationSynchronizationRetryDelayProvider(options, new FixedRandom(0.5));
 
-        using var worker = new ConfigurationSynchronizationWorker(synchronizer, options, timeProvider, retryDelayProvider);
+        using var worker = new ConfigurationSynchronizationWorker(synchronizer, options, timeProvider, retryDelayProvider, new ConfigurationSynchronizationState());
         using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
         await worker.StartAsync(cancellationTokenSource.Token);
@@ -113,7 +146,8 @@ public sealed class ConfigurationSynchronizationWorkerRetryTests
             synchronizer,
             options,
             timeProvider,
-            retryDelayProvider));
+            retryDelayProvider,
+            new ConfigurationSynchronizationState()));
 
         Assert.Equal("retryDelayProvider", exception.ParamName);
     }
@@ -137,7 +171,7 @@ public sealed class ConfigurationSynchronizationWorkerRetryTests
         });
         var retryDelayProvider = new ConfigurationSynchronizationRetryDelayProvider(options, new FixedRandom(0.5));
 
-        using var worker = new ConfigurationSynchronizationWorker(synchronizer, options, timeProvider, retryDelayProvider);
+        using var worker = new ConfigurationSynchronizationWorker(synchronizer, options, timeProvider, retryDelayProvider, new ConfigurationSynchronizationState());
         using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
         await worker.StartAsync(CancellationToken.None);
@@ -152,6 +186,43 @@ public sealed class ConfigurationSynchronizationWorkerRetryTests
 
         Assert.Equal(1, client.SnapshotRequestCount);
         Assert.Null(snapshotStore.ReplacedSnapshot);
+    }
+
+    /// <summary>
+    /// Проверяет отметку готовности после успешной первоначальной загрузки snapshot
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsyncMarksSynchronizationStateReadyAfterInitialSnapshotLoaded()
+    {
+        var snapshot = new PublishedSmartLinksSnapshot(7, []);
+        var client = new FailingOnceChangesManagementConfigurationClient(snapshot);
+        var snapshotStore = new StubConfigurationSnapshotStore();
+        var synchronizer = new ConfigurationSynchronizer(client, snapshotStore, snapshotStore);
+        var timeProvider = new RecordingFakeTimeProvider();
+        var options = Options.Create(new ConfigurationSynchronizationOptions
+        {
+            PollingInterval = TimeSpan.FromHours(1)
+        });
+        var retryDelayProvider = new ConfigurationSynchronizationRetryDelayProvider(options, new FixedRandom(0.5));
+        var synchronizationState = new ConfigurationSynchronizationState();
+
+        using var worker = new ConfigurationSynchronizationWorker(
+            synchronizer,
+            options,
+            timeProvider,
+            retryDelayProvider,
+            synchronizationState);
+        using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        Assert.False(synchronizationState.IsReady);
+
+        await worker.StartAsync(CancellationToken.None);
+
+        var pollingDelay = await timeProvider.WaitForCreatedTimerAsync(cancellationTokenSource.Token);
+        Assert.Equal(TimeSpan.FromHours(1), pollingDelay);
+        Assert.True(synchronizationState.IsReady);
+
+        await worker.StopAsync(cancellationTokenSource.Token);
     }
 
     private sealed class RecordingFakeTimeProvider : FakeTimeProvider
