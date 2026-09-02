@@ -24,6 +24,8 @@ public static class RedirectInfrastructureServiceCollectionExtensions
             httpClient => httpClient.BaseAddress = managementApiBaseAddress);
 
         services.AddSingleton<ConfigurationSynchronizer>();
+        services.AddOptions<ConfigurationSynchronizationOptions>();
+        services.AddSingleton(TimeProvider.System);
         services.AddHostedService<ConfigurationSynchronizationWorker>();
 
         return services;
