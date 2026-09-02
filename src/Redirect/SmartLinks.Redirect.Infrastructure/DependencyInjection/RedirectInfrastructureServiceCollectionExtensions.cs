@@ -26,6 +26,8 @@ public static class RedirectInfrastructureServiceCollectionExtensions
         services.AddSingleton<ConfigurationSynchronizer>();
         services.AddOptions<ConfigurationSynchronizationOptions>();
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton(Random.Shared);
+        services.AddSingleton<ConfigurationSynchronizationRetryDelayProvider>();
         services.AddHostedService<ConfigurationSynchronizationWorker>();
 
         return services;

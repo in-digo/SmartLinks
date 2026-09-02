@@ -14,4 +14,14 @@ public sealed class ConfigurationSynchronizationOptions
     /// Возвращает максимальное количество изменений за один запрос
     /// </summary>
     public int ChangeBatchSize { get; init; } = 100;
+
+    /// <summary>
+    /// Возвращает начальную верхнюю границу задержки повторной попытки
+    /// </summary>
+    public TimeSpan InitialRetryDelay { get; init; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// Возвращает максимальную задержку повторной попытки
+    /// </summary>
+    public TimeSpan MaximumRetryDelay { get; init; } = TimeSpan.FromSeconds(30);
 }
