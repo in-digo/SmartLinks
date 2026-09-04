@@ -1,0 +1,13 @@
+**
+!global.json
+!Directory.Build.props
+!Directory.Packages.props
+!src/
+!src/**
+**/bin/
+**/obj/
+**/.DS_Store
+**/.env
+**/.env.*
+**/*.suo
+**/*.user
