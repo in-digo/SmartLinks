@@ -27,4 +27,10 @@
     <ProjectReference Include="..\..\src\Redirect\SmartLinks.Redirect.Infrastructure\SmartLinks.Redirect.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="TestData\GeoIP2-Country-Test.mmdb">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

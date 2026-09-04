@@ -2,6 +2,8 @@ using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
 using SmartLinks.Contracts.Configurations;
 using SmartLinks.Redirect.Application.Configurations;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.HttpOverrides;
 
 namespace SmartLinks.Redirect.IntegrationTests.Api;
 
@@ -151,6 +153,94 @@ public sealed class SmartLinkRedirectEndpointTests : IClassFixture<WebApplicatio
     }
 
     /// <summary>
+    /// Проверяет использование IP-адреса клиента из forwarded-заголовка
+    /// </summary>
+    [Fact]
+    public async Task RedirectUsesForwardedClientIpAddressWhenResolvingCountryRule()
+    {
+        var databasePath = Path.Combine(AppContext.BaseDirectory, "TestData", "GeoIP2-Country-Test.mmdb");
+        using var factory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("GeoIp:DatabasePath", databasePath);
+            builder.ConfigureServices(services =>
+            {
+                // В тестовом хосте разрешаем обработку заголовка от TestServer
+                services.Configure<ForwardedHeadersOptions>(options =>
+                {
+                    options.KnownNetworks.Clear();
+                    options.KnownProxies.Clear();
+                });
+            });
+        });
+        using var client = CreateClient(factory, CreateConfiguration(rules: [CreateCountryRule()]));
+        client.DefaultRequestHeaders.TryAddWithoutValidation("X-Forwarded-For", "81.2.69.160");
+
+        using var response = await client.GetAsync("/summer-sale");
+
+        Assert.Equal("https://example.com/gb", response.Headers.Location?.AbsoluteUri);
+    }
+
+    /// <summary>
+    /// Проверяет игнорирование клиентского IP от недоверенного reverse proxy
+    /// </summary>
+    [Fact]
+    public async Task RedirectIgnoresForwardedClientIpAddressFromUntrustedProxy()
+    {
+        using var factory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("GeoIp:DatabasePath", Path.Combine(AppContext.BaseDirectory, "TestData", "GeoIP2-Country-Test.mmdb"));
+            builder.ConfigureServices(services =>
+            {
+                services.Configure<ForwardedHeadersOptions>(options =>
+                {
+                    options.KnownNetworks.Clear();
+                    options.KnownProxies.Clear();
+                    options.KnownProxies.Add(IPAddress.Parse("192.0.2.1"));
+                });
+            });
+        });
+        using var client = CreateClient(factory, CreateConfiguration(rules: [CreateCountryRule()]));
+
+        var responseContext = await factory.Server.SendAsync(requestContext =>
+        {
+            requestContext.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.25");
+            requestContext.Request.Method = HttpMethod.Get.Method;
+            requestContext.Request.Path = "/summer-sale";
+            requestContext.Request.Headers["X-Forwarded-For"] = "81.2.69.160";
+        });
+
+        Assert.Equal((int)HttpStatusCode.Found, responseContext.Response.StatusCode);
+        Assert.Equal("https://example.com/default", responseContext.Response.Headers.Location.ToString());
+    }
+
+    /// <summary>
+    /// Проверяет обработку только ближайшего адреса из forwarded-заголовка
+    /// </summary>
+    [Fact]
+    public async Task RedirectUsesNearestForwardedClientIpAddress()
+    {
+        var databasePath = Path.Combine(AppContext.BaseDirectory, "TestData", "GeoIP2-Country-Test.mmdb");
+        using var factory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("GeoIp:DatabasePath", databasePath);
+            builder.ConfigureServices(services =>
+            {
+                services.Configure<ForwardedHeadersOptions>(options =>
+                {
+                    options.KnownNetworks.Clear();
+                    options.KnownProxies.Clear();
+                });
+            });
+        });
+        using var client = CreateClient(factory, CreateConfiguration(rules: [CreateCountryRule()]));
+        client.DefaultRequestHeaders.TryAddWithoutValidation("X-Forwarded-For", "203.0.113.10, 81.2.69.160");
+
+        using var response = await client.GetAsync("/summer-sale");
+
+        Assert.Equal("https://example.com/gb", response.Headers.Location?.AbsoluteUri);
+    }
+
+    /// <summary>
     /// Создаёт HTTP-клиент без автоматического перехода по редиректу и заполняет snapshot
     /// </summary>
     private static HttpClient CreateClient(
@@ -202,6 +292,28 @@ public sealed class SmartLinkRedirectEndpointTests : IClassFixture<WebApplicatio
                   "deviceType": "mobile"
                 }
               }
+            }
+            """);
+    }
+
+    /// <summary>
+    /// Создаёт правило перенаправления клиента из Великобритании
+    /// </summary>
+    private static SmartLinkRuleSnapshot CreateCountryRule()
+    {
+        return new SmartLinkRuleSnapshot(
+            10,
+            true,
+            "https://example.com/gb",
+            """
+            {
+            "dslVersion": 1,
+            "condition": {
+                "type": "country",
+                "parameters": {
+                "countryCode": "GB"
+                }
+            }
             }
             """);
     }

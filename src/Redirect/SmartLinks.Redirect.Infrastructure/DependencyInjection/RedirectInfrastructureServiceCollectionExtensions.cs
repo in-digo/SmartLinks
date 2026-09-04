@@ -1,6 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using SmartLinks.Redirect.Infrastructure.Management;
 using SmartLinks.Redirect.Infrastructure.Synchronization;
+using SmartLinks.Redirect.Infrastructure.GeoIp;
+using SmartLinks.RuleEngine.Resolution;
 
 namespace SmartLinks.Redirect.Infrastructure.DependencyInjection;
 
@@ -30,6 +33,20 @@ public static class RedirectInfrastructureServiceCollectionExtensions
         services.AddSingleton<ConfigurationSynchronizationRetryDelayProvider>();
         services.AddSingleton<ConfigurationSynchronizationState>();
         services.AddHostedService<ConfigurationSynchronizationWorker>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Регистрирует определитель страны по локальной базе MaxMind
+    /// </summary>
+    public static IServiceCollection AddMaxMindGeoIp(this IServiceCollection services, string databasePath)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+
+        services.Replace(ServiceDescriptor.Singleton<IClientLocationResolver>(
+            _ => new MaxMindClientLocationResolver(databasePath)));
 
         return services;
     }

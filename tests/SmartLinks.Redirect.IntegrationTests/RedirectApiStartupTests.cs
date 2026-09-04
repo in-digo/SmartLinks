@@ -5,7 +5,10 @@ using SmartLinks.Redirect.Infrastructure.Management;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.HttpOverrides;
 using SmartLinks.Redirect.Infrastructure.Synchronization;
+using SmartLinks.Redirect.Infrastructure.GeoIp;
+using SmartLinks.RuleEngine.Resolution;
 
 namespace SmartLinks.Redirect.IntegrationTests;
 
@@ -118,5 +121,91 @@ public sealed class RedirectApiStartupTests : IClassFixture<WebApplicationFactor
         });
 
         Assert.Equal("Задан некорректный базовый адрес Management API", exception.Message);
+    }
+
+    /// <summary>
+    /// Проверяет подключение настроенного определителя страны MaxMind
+    /// </summary>
+    [Fact]
+    public void RedirectApiRegistersConfiguredMaxMindClientLocationResolver()
+    {
+        var databasePath = Path.Combine(AppContext.BaseDirectory, "TestData", "GeoIP2-Country-Test.mmdb");
+        using var factory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("GeoIp:DatabasePath", databasePath);
+        });
+
+        var locationResolver = factory.Services.GetRequiredService<IClientLocationResolver>();
+
+        Assert.IsType<MaxMindClientLocationResolver>(locationResolver);
+    }
+
+    /// <summary>
+    /// Проверяет использование неизвестной страны без настройки базы MaxMind
+    /// </summary>
+    [Fact]
+    public void RedirectApiWithoutGeoIpDatabasePathUsesUnknownClientLocationResolver()
+    {
+        using var factory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("GeoIp:DatabasePath", string.Empty);
+        });
+
+        var locationResolver = factory.Services.GetRequiredService<IClientLocationResolver>();
+
+        Assert.IsType<UnknownClientLocationResolver>(locationResolver);
+    }
+
+    /// <summary>
+    /// Проверяет ошибку запуска Redirect API при отсутствии настроенной базы MaxMind
+    /// </summary>
+    [Fact]
+    public void RedirectApiWithMissingGeoIpDatabaseFileFailsToStart()
+    {
+        var databasePath = Path.Combine(Path.GetTempPath(), $"missing-geoip-{Guid.NewGuid():N}.mmdb");
+        using var factory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("GeoIp:DatabasePath", databasePath);
+        });
+
+        Assert.Throws<FileNotFoundException>(() =>
+        {
+            using var client = factory.CreateClient();
+        });
+    }
+
+    /// <summary>
+    /// Проверяет добавление настроенной доверенной сети reverse proxy
+    /// </summary>
+    [Fact]
+    public void RedirectApiAddsConfiguredTrustedProxyNetwork()
+    {
+        using var factory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("ForwardedHeaders:KnownNetworks:0", "10.42.0.0/16");
+        });
+
+        var options = factory.Services.GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
+
+        Assert.Contains(options.KnownNetworks, knownNetwork => knownNetwork.Contains(IPAddress.Parse("10.42.15.20")));
+    }
+
+    /// <summary>
+    /// Проверяет ошибку запуска Redirect API с некорректной доверенной сетью
+    /// </summary>
+    [Fact]
+    public void RedirectApiWithInvalidTrustedProxyNetworkFailsToStart()
+    {
+        using var factory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("ForwardedHeaders:KnownNetworks:0", "not-a-network");
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+        {
+            using var client = factory.CreateClient();
+        });
+
+        Assert.Equal("Задана некорректная доверенная сеть reverse proxy: not-a-network", exception.Message);
     }
 }
