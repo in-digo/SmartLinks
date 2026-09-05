@@ -52,6 +52,13 @@ public sealed class ConfigurationSynchronizer
             limit,
             cancellationToken);
 
-        _snapshotUpdater.ApplyChanges(changes);
+        try
+        {
+            _snapshotUpdater.ApplyChanges(changes);
+        }
+        catch (InvalidOperationException)
+        {
+            await LoadSnapshotAsync(cancellationToken);
+        }
     }
 }

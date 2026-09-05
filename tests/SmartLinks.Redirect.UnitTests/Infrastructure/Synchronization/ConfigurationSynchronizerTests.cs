@@ -4,6 +4,7 @@ using SmartLinks.Redirect.Application.Configurations;
 using SmartLinks.Redirect.Infrastructure.Management;
 using SmartLinks.Redirect.Infrastructure.Synchronization;
 using SmartLinks.RuleEngine.Resolution;
+using SmartLinks.RuleEngine.Conditions;
 
 namespace SmartLinks.Redirect.UnitTests.Infrastructure.Synchronization;
 
@@ -220,6 +221,46 @@ public sealed class ConfigurationSynchronizerTests
 
         Assert.Same(expectedException, exception);
         Assert.Null(snapshotUpdater.AppliedChanges);
+    }
+
+        /// <summary>
+    /// Проверяет восстановление полной проекции после пропуска ревизии в change feed
+    /// </summary>
+    [Fact]
+    public async Task SynchronizeChangesAsyncReloadsFullSnapshotWhenChangeFeedHasRevisionGap()
+    {
+        var snapshotStore = new ConfigurationSnapshotStore(new ConditionDslCompiler(new ConditionCompiler([])));
+        snapshotStore.ReplaceSnapshot(new PublishedSmartLinksSnapshot(
+            5,
+            [
+                new SmartLinkConfigurationSnapshot(
+                    Guid.NewGuid(),
+                    "current-link",
+                    "https://example.com/current",
+                    true,
+                    [])
+            ]));
+        var recoveredConfiguration = new SmartLinkConfigurationSnapshot(
+            Guid.NewGuid(),
+            "recovered-link",
+            "https://example.com/recovered",
+            true,
+            []);
+        var recoveredSnapshot = new PublishedSmartLinksSnapshot(7, [recoveredConfiguration]);
+        IReadOnlyList<ConfigurationChange> changes =
+        [
+            new ConfigurationChange(7, recoveredConfiguration)
+        ];
+        var client = new StubManagementConfigurationClient(recoveredSnapshot, changes: changes);
+        var synchronizer = new ConfigurationSynchronizer(client, snapshotStore, snapshotStore);
+
+        await synchronizer.SynchronizeChangesAsync(limit: 50, CancellationToken.None);
+
+        Assert.Equal(1, client.ChangesRequestCount);
+        Assert.Equal(1, client.SnapshotRequestCount);
+        Assert.Equal(7L, snapshotStore.Revision);
+        Assert.False(snapshotStore.TryGetBySlug("current-link", out _));
+        Assert.True(snapshotStore.TryGetBySlug("recovered-link", out _));
     }
 
     private sealed class StubManagementConfigurationClient : IManagementConfigurationClient
