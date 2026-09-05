@@ -78,6 +78,9 @@ jobs:
           umask 077
           openssl rand -hex 32 > deploy/docker/.secrets/postgres-password
           openssl rand -hex 32 > deploy/docker/.secrets/management-api-key
+          chmod 0444 \
+            deploy/docker/.secrets/postgres-password \
+            deploy/docker/.secrets/management-api-key
 
       - name: Validate Docker Compose configuration
         run: docker compose --file deploy/docker/compose.yaml config --quiet
