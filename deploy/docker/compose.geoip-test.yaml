@@ -1,0 +1,11 @@
+services:
+  redirect:
+    environment:
+      GeoIp__DatabasePath: /var/lib/smartlinks/geoip/GeoIP2-Country-Test.mmdb
+    volumes:
+      - type: bind
+        source: ../../tests/SmartLinks.Redirect.UnitTests/TestData/GeoIP2-Country-Test.mmdb
+        target: /var/lib/smartlinks/geoip/GeoIP2-Country-Test.mmdb
+        read_only: true
+        bind:
+          create_host_path: false
