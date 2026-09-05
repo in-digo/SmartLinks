@@ -98,6 +98,47 @@ services:
       - ALL
     restart: unless-stopped
 
+  newman:
+    image: smartlinks-newman:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/SmartLinks.Newman.Dockerfile
+    profiles:
+      - e2e
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        umask 077
+        node /etc/newman/prepare-newman-environment.cjs \
+          /etc/newman/SmartLinks.Local.postman_environment.json \
+          /tmp/SmartLinks.Newman.postman_environment.json
+        exec newman run \
+          /etc/newman/SmartLinks.postman_collection.json \
+          --environment /tmp/SmartLinks.Newman.postman_environment.json
+    environment:
+      HOME: /tmp
+      SMARTLINKS_MANAGEMENT_BASE_URL: http://management:8080
+      SMARTLINKS_REDIRECT_BASE_URL: http://redirect:8080
+      SMARTLINKS_MANAGEMENT_API_KEY_FILE: /run/secrets/management_api_key
+    volumes:
+      - ../../postman:/etc/newman:ro
+    secrets:
+      - management_api_key
+    depends_on:
+      management:
+        condition: service_healthy
+      redirect:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: "no"
+
 secrets:
   postgres_password:
     file: ./.secrets/postgres-password

@@ -1,0 +1,674 @@
+{
+  "info": {
+    "_postman_id": "c2d9bb45-5445-43ba-b360-c1f27ed1e539",
+    "name": "SmartLinks",
+    "description": "Управление умными ссылками и сквозная проверка Management API → PostgreSQL → Redirect API. Все адреса задаются через переменные окружения.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Management readiness",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Management is healthy\", function () {",
+                  "    pm.expect(pm.response.text()).to.eql(\"Healthy\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{managementBaseUrl}}/health/ready",
+              "host": [
+                "{{managementBaseUrl}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            },
+            "description": "Проверяет готовность Management API и доступность PostgreSQL"
+          },
+          "response": []
+        },
+        {
+          "name": "Redirect readiness",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Redirect is healthy\", function () {",
+                  "    pm.expect(pm.response.text()).to.eql(\"Healthy\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{redirectBaseUrl}}/health/ready",
+              "host": [
+                "{{redirectBaseUrl}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            },
+            "description": "Проверяет готовность Redirect API после первоначальной синхронизации"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Management API",
+      "item": [
+        {
+          "name": "Create SmartLink",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const apiKey = pm.environment.get(\"managementApiKey\");",
+                  "",
+                  "if (!apiKey)",
+                  "    throw new Error(\"Environment variable 'managementApiKey' is required\");",
+                  "",
+                  "const uniqueSuffix = pm.variables.replaceIn(\"{{$guid}}\");",
+                  "pm.collectionVariables.set(\"smartLinkSlug\", `e2e-device-${uniqueSuffix}`);",
+                  "pm.collectionVariables.unset(\"smartLinkId\");",
+                  "pm.collectionVariables.unset(\"publishedRevision\");",
+                  "pm.collectionVariables.unset(\"synchronizationAttempt\");"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "",
+                  "    pm.test(\"Response contains a valid SmartLink identifier\", function () {",
+                  "        pm.expect(response).to.have.property(\"id\");",
+                  "        pm.expect(response.id).to.match(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i);",
+                  "    });",
+                  "",
+                  "    pm.test(\"Location header references the created SmartLink\", function () {",
+                  "        pm.expect(pm.response.headers.get(\"Location\")).to.eql(`/api/smart-links/${response.id}`);",
+                  "    });",
+                  "",
+                  "    pm.collectionVariables.set(\"smartLinkId\", response.id);",
+                  "} else {",
+                  "    pm.execution.setNextRequest(null);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Api-Key",
+                "value": "{{managementApiKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"slug\": \"{{smartLinkSlug}}\",\n  \"defaultUrl\": \"https://example.com/default\",\n  \"isActive\": true,\n  \"rules\": [\n    {\n      \"priority\": 10,\n      \"isEnabled\": true,\n      \"targetUrl\": \"https://example.com/mobile\",\n      \"conditionDsl\": \"{\\\"dslVersion\\\":1,\\\"condition\\\":{\\\"type\\\":\\\"device\\\",\\\"parameters\\\":{\\\"deviceType\\\":\\\"mobile\\\"}}}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{managementBaseUrl}}/api/smart-links",
+              "host": [
+                "{{managementBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "smart-links"
+              ]
+            },
+            "description": "Создаёт умную ссылку с мобильным правилом. Перед ручным использованием тело запроса можно изменить, не меняя адрес endpoint"
+          },
+          "response": []
+        },
+        {
+          "name": "Get created SmartLink",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "",
+                  "    pm.test(\"Created configuration is returned\", function () {",
+                  "        pm.expect(response.id).to.eql(pm.collectionVariables.get(\"smartLinkId\"));",
+                  "        pm.expect(response.slug).to.eql(pm.collectionVariables.get(\"smartLinkSlug\"));",
+                  "        pm.expect(response.defaultUrl).to.eql(\"https://example.com/default\");",
+                  "        pm.expect(response.isActive).to.be.true;",
+                  "        pm.expect(response.rules).to.have.lengthOf(1);",
+                  "        pm.expect(response.rules[0]).to.deep.include({",
+                  "            priority: 10,",
+                  "            isEnabled: true,",
+                  "            targetUrl: \"https://example.com/mobile\"",
+                  "        });",
+                  "    });",
+                  "} else {",
+                  "    pm.execution.setNextRequest(null);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{managementBaseUrl}}/api/smart-links/{{smartLinkId}}",
+              "host": [
+                "{{managementBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "smart-links",
+                "{{smartLinkId}}"
+              ]
+            },
+            "description": "Возвращает текущую редактируемую конфигурацию созданной ссылки"
+          },
+          "response": []
+        },
+        {
+          "name": "Update SmartLink and add rule",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const apiKey = pm.environment.get(\"managementApiKey\");",
+                  "",
+                  "if (!apiKey)",
+                  "    throw new Error(\"Environment variable 'managementApiKey' is required\");"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "if (pm.response.code !== 204)",
+                  "    pm.execution.setNextRequest(null);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Api-Key",
+                "value": "{{managementApiKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"slug\": \"{{smartLinkSlug}}\",\n  \"defaultUrl\": \"https://example.com/default\",\n  \"isActive\": true,\n  \"rules\": [\n    {\n      \"priority\": 10,\n      \"isEnabled\": true,\n      \"targetUrl\": \"https://example.com/mobile\",\n      \"conditionDsl\": \"{\\\"dslVersion\\\":1,\\\"condition\\\":{\\\"type\\\":\\\"device\\\",\\\"parameters\\\":{\\\"deviceType\\\":\\\"mobile\\\"}}}\"\n    },\n    {\n      \"priority\": 20,\n      \"isEnabled\": true,\n      \"targetUrl\": \"https://example.com/edge\",\n      \"conditionDsl\": \"{\\\"dslVersion\\\":1,\\\"condition\\\":{\\\"type\\\":\\\"browser\\\",\\\"parameters\\\":{\\\"browser\\\":\\\"edge\\\"}}}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{managementBaseUrl}}/api/smart-links/{{smartLinkId}}",
+              "host": [
+                "{{managementBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "smart-links",
+                "{{smartLinkId}}"
+              ]
+            },
+            "description": "Полностью заменяет конфигурацию ссылки. В примере сохраняет мобильное правило и добавляет правило для Edge"
+          },
+          "response": []
+        },
+        {
+          "name": "Get updated SmartLink",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "",
+                  "    pm.test(\"Updated configuration contains both rules\", function () {",
+                  "        pm.expect(response.id).to.eql(pm.collectionVariables.get(\"smartLinkId\"));",
+                  "        pm.expect(response.slug).to.eql(pm.collectionVariables.get(\"smartLinkSlug\"));",
+                  "        pm.expect(response.rules).to.have.lengthOf(2);",
+                  "",
+                  "        const mobileRule = response.rules.find(rule => rule.priority === 10);",
+                  "        const edgeRule = response.rules.find(rule => rule.priority === 20);",
+                  "",
+                  "        pm.expect(mobileRule).to.deep.include({",
+                  "            isEnabled: true,",
+                  "            targetUrl: \"https://example.com/mobile\"",
+                  "        });",
+                  "        pm.expect(edgeRule).to.deep.include({",
+                  "            isEnabled: true,",
+                  "            targetUrl: \"https://example.com/edge\"",
+                  "        });",
+                  "    });",
+                  "} else {",
+                  "    pm.execution.setNextRequest(null);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{managementBaseUrl}}/api/smart-links/{{smartLinkId}}",
+              "host": [
+                "{{managementBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "smart-links",
+                "{{smartLinkId}}"
+              ]
+            },
+            "description": "Проверяет полную конфигурацию после добавления правила"
+          },
+          "response": []
+        },
+        {
+          "name": "Publish SmartLink",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const apiKey = pm.environment.get(\"managementApiKey\");",
+                  "",
+                  "if (!apiKey)",
+                  "    throw new Error(\"Environment variable 'managementApiKey' is required\");"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "",
+                  "    pm.test(\"Response contains a positive revision\", function () {",
+                  "        pm.expect(response).to.have.property(\"revision\");",
+                  "        pm.expect(response.revision).to.be.a(\"number\").and.greaterThan(0);",
+                  "    });",
+                  "",
+                  "    pm.collectionVariables.set(\"publishedRevision\", response.revision);",
+                  "    pm.collectionVariables.set(\"synchronizationAttempt\", 1);",
+                  "} else {",
+                  "    pm.execution.setNextRequest(null);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{managementApiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{managementBaseUrl}}/api/smart-links/{{smartLinkId}}/publish",
+              "host": [
+                "{{managementBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "smart-links",
+                "{{smartLinkId}}",
+                "publish"
+              ]
+            },
+            "description": "Проверяет DSL и публикует текущую конфигурацию"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Redirect API",
+      "item": [
+        {
+          "name": "Wait for Redirect synchronization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const expectedLocation = \"https://example.com/mobile\";",
+                  "const maximumAttempts = 15;",
+                  "const retryDelayMilliseconds = 1000;",
+                  "const attempt = Number(pm.collectionVariables.get(\"synchronizationAttempt\") || 1);",
+                  "const actualLocation = pm.response.headers.get(\"Location\");",
+                  "const isSynchronized = pm.response.code === 302 && actualLocation === expectedLocation;",
+                  "",
+                  "if (isSynchronized) {",
+                  "    pm.test(`Redirect is synchronized on attempt ${attempt}`, function () {",
+                  "        pm.expect(pm.response.code).to.eql(302);",
+                  "        pm.expect(actualLocation).to.eql(expectedLocation);",
+                  "    });",
+                  "",
+                  "    pm.collectionVariables.unset(\"synchronizationAttempt\");",
+                  "} else if (attempt < maximumAttempts) {",
+                  "    pm.collectionVariables.set(\"synchronizationAttempt\", attempt + 1);",
+                  "    pm.execution.setNextRequest(\"Wait for Redirect synchronization\");",
+                  "",
+                  "    pm.test(`Wait before synchronization attempt ${attempt + 1}`, function (done) {",
+                  "        setTimeout(done, retryDelayMilliseconds);",
+                  "    });",
+                  "} else {",
+                  "    pm.test(`Redirect is synchronized within ${maximumAttempts} attempts`, function () {",
+                  "        pm.expect(pm.response.code, \"status code\").to.eql(302);",
+                  "        pm.expect(actualLocation, \"Location header\").to.eql(expectedLocation);",
+                  "    });",
+                  "",
+                  "    pm.collectionVariables.unset(\"synchronizationAttempt\");",
+                  "    pm.execution.setNextRequest(null);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "User-Agent",
+                "value": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5) AppleWebKit Mobile Safari",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{redirectBaseUrl}}/{{smartLinkSlug}}",
+              "host": [
+                "{{redirectBaseUrl}}"
+              ],
+              "path": [
+                "{{smartLinkSlug}}"
+              ]
+            },
+            "description": "Опрашивает Redirect до появления опубликованной конфигурации, но не более 15 секунд"
+          },
+          "response": []
+        },
+        {
+          "name": "Resolve default URL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 302\", function () {",
+                  "    pm.response.to.have.status(302);",
+                  "});",
+                  "",
+                  "pm.test(\"Desktop Chrome is redirected to the default URL\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Location\")).to.eql(\"https://example.com/default\");",
+                  "});",
+                  "",
+                  "pm.test(\"Response caching is disabled\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Cache-Control\")).to.eql(\"no-store\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "User-Agent",
+                "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/128.0.0.0 Safari/537.36",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{redirectBaseUrl}}/{{smartLinkSlug}}",
+              "host": [
+                "{{redirectBaseUrl}}"
+              ],
+              "path": [
+                "{{smartLinkSlug}}"
+              ]
+            },
+            "description": "Проверяет fallback на URL по умолчанию, когда правила устройства и браузера не подходят"
+          },
+          "response": []
+        },
+        {
+          "name": "Resolve mobile rule",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 302\", function () {",
+                  "    pm.response.to.have.status(302);",
+                  "});",
+                  "",
+                  "pm.test(\"Mobile device is redirected by the device rule\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Location\")).to.eql(\"https://example.com/mobile\");",
+                  "});",
+                  "",
+                  "pm.test(\"Response caching is disabled\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Cache-Control\")).to.eql(\"no-store\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "User-Agent",
+                "value": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5) AppleWebKit Mobile Safari",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{redirectBaseUrl}}/{{smartLinkSlug}}",
+              "host": [
+                "{{redirectBaseUrl}}"
+              ],
+              "path": [
+                "{{smartLinkSlug}}"
+              ]
+            },
+            "description": "Проверяет правило типа устройства mobile"
+          },
+          "response": []
+        },
+        {
+          "name": "Resolve Edge rule",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 302\", function () {",
+                  "    pm.response.to.have.status(302);",
+                  "});",
+                  "",
+                  "pm.test(\"Edge is redirected by the browser rule\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Location\")).to.eql(\"https://example.com/edge\");",
+                  "});",
+                  "",
+                  "pm.test(\"Response caching is disabled\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Cache-Control\")).to.eql(\"no-store\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "User-Agent",
+                "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/128.0.0.0 Safari/537.36 Edg/128.0.0.0",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{redirectBaseUrl}}/{{smartLinkSlug}}",
+              "host": [
+                "{{redirectBaseUrl}}"
+              ],
+              "path": [
+                "{{smartLinkSlug}}"
+              ]
+            },
+            "description": "Проверяет правило браузера Edge, добавленное запросом Update SmartLink"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "const requiredVariables = [\"managementBaseUrl\", \"redirectBaseUrl\"];",
+          "",
+          "for (const variableName of requiredVariables) {",
+          "    if (!pm.environment.get(variableName))",
+          "        throw new Error(`Environment variable '${variableName}' is required`);",
+          "}"
+        ],
+        "type": "text/javascript"
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "smartLinkId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "smartLinkSlug",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "publishedRevision",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "synchronizationAttempt",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
