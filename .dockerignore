@@ -1,4 +1,6 @@
 **
+!.config/
+!.config/dotnet-tools.json
 !global.json
 !Directory.Build.props
 !Directory.Packages.props

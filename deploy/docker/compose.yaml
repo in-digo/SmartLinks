@@ -1,0 +1,108 @@
+name: smartlinks-local
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: smartlinks
+      POSTGRES_USER: smartlinks
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username \"$${POSTGRES_USER}\" --dbname \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  management-migrations:
+    image: smartlinks-management-migrations:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/SmartLinks.Management.Api.Dockerfile
+      target: migrations
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        umask 077
+        printf '%s\n' "postgres:5432:smartlinks:smartlinks:$$(cat /run/secrets/postgres_password)" > /tmp/pgpass
+        exec ./efbundle --no-color --connection "Host=postgres;Port=5432;Database=smartlinks;Username=smartlinks;Passfile=/tmp/pgpass"
+    secrets:
+      - postgres_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  management:
+    image: smartlinks-management-api:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/SmartLinks.Management.Api.Dockerfile
+      target: final
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        database_password="$$(cat /run/secrets/postgres_password)"
+        api_key="$$(cat /run/secrets/management_api_key)"
+        test -n "$$database_password"
+        test -n "$$api_key"
+        umask 077
+        printf '%s\n' "postgres:5432:smartlinks:smartlinks:$$database_password" > /tmp/pgpass
+        export Authentication__ApiKey="$$api_key"
+        exec dotnet SmartLinks.Management.Api.dll
+    environment:
+      ConnectionStrings__Management: "Host=postgres;Port=5432;Database=smartlinks;Username=smartlinks;Passfile=/tmp/pgpass"
+    secrets:
+      - postgres_password
+      - management_api_key
+    ports:
+      - "127.0.0.1:5200:8080"
+    depends_on:
+      management-migrations:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+  redirect:
+    image: smartlinks-redirect-api:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/SmartLinks.Redirect.Api.Dockerfile
+      target: final
+    environment:
+      ManagementApi__BaseAddress: "http://management:8080"
+    ports:
+      - "127.0.0.1:5025:8080"
+    depends_on:
+      management:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+secrets:
+  postgres_password:
+    file: ./.secrets/postgres-password
+  management_api_key:
+    file: ./.secrets/management-api-key
+
+volumes:
+  postgres-data:

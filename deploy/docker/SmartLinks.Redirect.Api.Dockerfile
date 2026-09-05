@@ -24,10 +24,16 @@ RUN dotnet publish "src/Redirect/SmartLinks.Redirect.Api/SmartLinks.Redirect.Api
 
 FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET_ASPNET_TAG} AS final
 WORKDIR /app
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
 
 COPY --from=build /app/publish .
 
 USER ${APP_UID}
+HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=12 \
+    CMD ["curl", "--fail", "--silent", "--show-error", "--max-time", "2", "--output", "/dev/null", "http://127.0.0.1:8080/health/ready"]
 ENTRYPOINT ["dotnet", "SmartLinks.Redirect.Api.dll"]

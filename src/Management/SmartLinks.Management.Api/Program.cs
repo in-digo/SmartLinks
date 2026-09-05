@@ -10,6 +10,7 @@ using SmartLinks.Management.Application.SmartLinks.Publication;
 using SmartLinks.Management.Application.SmartLinks.Queries;
 using SmartLinks.Management.Application.SmartLinks.Update;
 using SmartLinks.Management.Infrastructure.DependencyInjection;
+using SmartLinks.Management.Infrastructure.Persistence;
 using SmartLinks.RuleEngine.DependencyInjection;
 
 const string apiKeyAuthenticationScheme = "ApiKey";
@@ -20,8 +21,10 @@ var connectionString = builder.Configuration.GetConnectionString("Management")
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ManagementApiExceptionHandler>();
-builder.Services.AddHealthChecks();
 builder.Services.AddManagementInfrastructure(connectionString);
+builder.Services
+    .AddHealthChecks()
+    .AddDbContextCheck<ManagementDbContext>("management-database", tags: ["ready"]);
 builder.Services.AddSmartLinksRuleEngine();
 builder.Services.AddScoped<CreateSmartLinkUseCase>();
 builder.Services.AddScoped<GetSmartLinkUseCase>();
@@ -34,7 +37,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    var xmlDocumentationFile =  $"{typeof(Program).Assembly.GetName().Name}.xml";
+    var xmlDocumentationFile = $"{typeof(Program).Assembly.GetName().Name}.xml";
     var xmlDocumentationPath = Path.Combine(AppContext.BaseDirectory, xmlDocumentationFile);
     options.IncludeXmlComments(xmlDocumentationPath);
 
@@ -71,8 +74,14 @@ app.UseAuthorization();
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
-    // Liveness проверяет только работоспособность процесса и не зависит от PostgreSQL
+    // Liveness проверяет работоспособность процесса
     Predicate = _ => false
+});
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    // Readiness зависит от доступности PostgreSQL
+    Predicate = healthCheck => healthCheck.Tags.Contains("ready")
 });
 
 app.MapSmartLinkEndpoints();
