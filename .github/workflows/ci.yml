@@ -61,3 +61,48 @@ jobs:
 
       - name: Enforce line coverage threshold
         run: dotnet reportgenerator "-reports:artifacts/coverage-report/Cobertura.xml" "-targetdir:artifacts/coverage-threshold" "-reporttypes:TextSummary" "--minimumCoverageThresholds:lineCoverage=90"
+
+  postman-e2e:
+    name: Postman E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Create temporary Docker secrets
+        shell: bash
+        run: |
+          install -d -m 700 deploy/docker/.secrets
+          umask 077
+          openssl rand -hex 32 > deploy/docker/.secrets/postgres-password
+          openssl rand -hex 32 > deploy/docker/.secrets/management-api-key
+
+      - name: Validate Docker Compose configuration
+        run: docker compose --file deploy/docker/compose.yaml config --quiet
+
+      - name: Start SmartLinks services
+        run: docker compose --file deploy/docker/compose.yaml up --build --wait --wait-timeout 180
+
+      - name: Run Postman collection with Newman
+        run: docker compose --file deploy/docker/compose.yaml --profile e2e run --build --rm newman
+
+      - name: Show container state and logs on failure
+        if: failure()
+        run: |
+          docker compose --file deploy/docker/compose.yaml --profile e2e ps --all
+          docker compose --file deploy/docker/compose.yaml --profile e2e logs --no-color
+
+      - name: Stop SmartLinks services
+        if: always()
+        run: docker compose --file deploy/docker/compose.yaml --profile e2e down --volumes --remove-orphans
+
+      - name: Remove temporary Docker secrets
+        if: always()
+        shell: bash
+        run: |
+          if [ -d deploy/docker/.secrets ]; then
+            find deploy/docker/.secrets -depth -mindepth 1 -delete
+            rmdir deploy/docker/.secrets
+          fi
