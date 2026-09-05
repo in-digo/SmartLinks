@@ -99,10 +99,12 @@
                   "    throw new Error(\"Environment variable 'managementApiKey' is required\");",
                   "",
                   "const uniqueSuffix = pm.variables.replaceIn(\"{{$guid}}\");",
-                  "pm.collectionVariables.set(\"smartLinkSlug\", `e2e-device-${uniqueSuffix}`);",
+                  "pm.collectionVariables.set(\"smartLinkSlug\", `e2e-context-${uniqueSuffix}`);",
                   "pm.collectionVariables.unset(\"smartLinkId\");",
                   "pm.collectionVariables.unset(\"publishedRevision\");",
-                  "pm.collectionVariables.unset(\"synchronizationAttempt\");"
+                  "pm.collectionVariables.unset(\"synchronizationAttempt\");",
+                  "pm.collectionVariables.unset(\"utcTimeFrom\");",
+                  "pm.collectionVariables.unset(\"utcTimeTo\");"
                 ],
                 "type": "text/javascript"
               }
@@ -234,7 +236,16 @@
                   "const apiKey = pm.environment.get(\"managementApiKey\");",
                   "",
                   "if (!apiKey)",
-                  "    throw new Error(\"Environment variable 'managementApiKey' is required\");"
+                  "    throw new Error(\"Environment variable 'managementApiKey' is required\");",
+                  "",
+                  "const currentTimeMilliseconds = Date.now();",
+                  "const oneHourMilliseconds = 60 * 60 * 1000;",
+                  "pm.collectionVariables.set(",
+                  "    \"utcTimeFrom\",",
+                  "    new Date(currentTimeMilliseconds - oneHourMilliseconds).toISOString());",
+                  "pm.collectionVariables.set(",
+                  "    \"utcTimeTo\",",
+                  "    new Date(currentTimeMilliseconds + oneHourMilliseconds).toISOString());"
                 ],
                 "type": "text/javascript"
               }
@@ -269,7 +280,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"slug\": \"{{smartLinkSlug}}\",\n  \"defaultUrl\": \"https://example.com/default\",\n  \"isActive\": true,\n  \"rules\": [\n    {\n      \"priority\": 10,\n      \"isEnabled\": true,\n      \"targetUrl\": \"https://example.com/mobile\",\n      \"conditionDsl\": \"{\\\"dslVersion\\\":1,\\\"condition\\\":{\\\"type\\\":\\\"device\\\",\\\"parameters\\\":{\\\"deviceType\\\":\\\"mobile\\\"}}}\"\n    },\n    {\n      \"priority\": 20,\n      \"isEnabled\": true,\n      \"targetUrl\": \"https://example.com/edge\",\n      \"conditionDsl\": \"{\\\"dslVersion\\\":1,\\\"condition\\\":{\\\"type\\\":\\\"browser\\\",\\\"parameters\\\":{\\\"browser\\\":\\\"edge\\\"}}}\"\n    }\n  ]\n}",
+              "raw": "{\n  \"slug\": \"{{smartLinkSlug}}\",\n  \"defaultUrl\": \"https://example.com/default\",\n  \"isActive\": true,\n  \"rules\": [\n    {\n      \"priority\": 10,\n      \"isEnabled\": true,\n      \"targetUrl\": \"https://example.com/mobile\",\n      \"conditionDsl\": \"{\\\"dslVersion\\\":1,\\\"condition\\\":{\\\"type\\\":\\\"device\\\",\\\"parameters\\\":{\\\"deviceType\\\":\\\"mobile\\\"}}}\"\n    },\n    {\n      \"priority\": 20,\n      \"isEnabled\": true,\n      \"targetUrl\": \"https://example.com/edge\",\n      \"conditionDsl\": \"{\\\"dslVersion\\\":1,\\\"condition\\\":{\\\"type\\\":\\\"browser\\\",\\\"parameters\\\":{\\\"browser\\\":\\\"edge\\\"}}}\"\n    },\n    {\n      \"priority\": 30,\n      \"isEnabled\": true,\n      \"targetUrl\": \"https://example.com/current-time\",\n      \"conditionDsl\": \"{\\\"dslVersion\\\":1,\\\"condition\\\":{\\\"all\\\":[{\\\"type\\\":\\\"utcTime\\\",\\\"parameters\\\":{\\\"fromUtc\\\":\\\"{{utcTimeFrom}}\\\",\\\"toUtc\\\":\\\"{{utcTimeTo}}\\\"}},{\\\"type\\\":\\\"browser\\\",\\\"parameters\\\":{\\\"browser\\\":\\\"chrome\\\"}}]}}\"\n    }\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -287,7 +298,7 @@
                 "{{smartLinkId}}"
               ]
             },
-            "description": "Полностью заменяет конфигурацию ссылки. В примере сохраняет мобильное правило и добавляет правило для Edge"
+            "description": "Полностью заменяет конфигурацию ссылки. Сохраняет мобильное правило и добавляет правила для Edge и текущего UTC-интервала"
           },
           "response": []
         },
@@ -305,13 +316,14 @@
                   "if (pm.response.code === 200) {",
                   "    const response = pm.response.json();",
                   "",
-                  "    pm.test(\"Updated configuration contains both rules\", function () {",
+                  "    pm.test(\"Updated configuration contains all rules\", function () {",
                   "        pm.expect(response.id).to.eql(pm.collectionVariables.get(\"smartLinkId\"));",
                   "        pm.expect(response.slug).to.eql(pm.collectionVariables.get(\"smartLinkSlug\"));",
-                  "        pm.expect(response.rules).to.have.lengthOf(2);",
+                  "        pm.expect(response.rules).to.have.lengthOf(3);",
                   "",
                   "        const mobileRule = response.rules.find(rule => rule.priority === 10);",
                   "        const edgeRule = response.rules.find(rule => rule.priority === 20);",
+                  "        const currentTimeRule = response.rules.find(rule => rule.priority === 30);",
                   "",
                   "        pm.expect(mobileRule).to.deep.include({",
                   "            isEnabled: true,",
@@ -320,6 +332,10 @@
                   "        pm.expect(edgeRule).to.deep.include({",
                   "            isEnabled: true,",
                   "            targetUrl: \"https://example.com/edge\"",
+                  "        });",
+                  "        pm.expect(currentTimeRule).to.deep.include({",
+                  "            isEnabled: true,",
+                  "            targetUrl: \"https://example.com/current-time\"",
                   "        });",
                   "    });",
                   "} else {",
@@ -344,7 +360,7 @@
                 "{{smartLinkId}}"
               ]
             },
-            "description": "Проверяет полную конфигурацию после добавления правила"
+            "description": "Проверяет полную конфигурацию после добавления правил браузера и текущего UTC-интервала"
           },
           "response": []
         },
@@ -497,8 +513,56 @@
                   "    pm.response.to.have.status(302);",
                   "});",
                   "",
-                  "pm.test(\"Desktop Chrome is redirected to the default URL\", function () {",
+                  "pm.test(\"Desktop Firefox is redirected to the default URL\", function () {",
                   "    pm.expect(pm.response.headers.get(\"Location\")).to.eql(\"https://example.com/default\");",
+                  "});",
+                  "",
+                  "pm.test(\"Response caching is disabled\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Cache-Control\")).to.eql(\"no-store\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "User-Agent",
+                "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Gecko/20100101 Firefox/129.0",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{redirectBaseUrl}}/{{smartLinkSlug}}",
+              "host": [
+                "{{redirectBaseUrl}}"
+              ],
+              "path": [
+                "{{smartLinkSlug}}"
+              ]
+            },
+            "description": "Проверяет fallback на URL по умолчанию, когда правила устройства, браузера и времени не подходят"
+          },
+          "response": []
+        },
+        {
+          "name": "Resolve current UTC time rule",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 302\", function () {",
+                  "    pm.response.to.have.status(302);",
+                  "});",
+                  "",
+                  "pm.test(\"Current UTC time is redirected by the time rule\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Location\")).to.eql(\"https://example.com/current-time\");",
                   "});",
                   "",
                   "pm.test(\"Response caching is disabled\", function () {",
@@ -530,7 +594,7 @@
                 "{{smartLinkSlug}}"
               ]
             },
-            "description": "Проверяет fallback на URL по умолчанию, когда правила устройства и браузера не подходят"
+            "description": "Проверяет динамический UTC-интервал, включающий момент запуска коллекции"
           },
           "response": []
         },
@@ -667,6 +731,16 @@
     },
     {
       "key": "synchronizationAttempt",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "utcTimeFrom",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "utcTimeTo",
       "value": "",
       "type": "string"
     }
