@@ -1,0 +1,207 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: smartlinks-management
+  labels:
+    app.kubernetes.io/name: smartlinks
+    app.kubernetes.io/component: management
+    app.kubernetes.io/part-of: smartlinks
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: smartlinks
+    app.kubernetes.io/component: management
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smartlinks-management
+  labels:
+    app.kubernetes.io/name: smartlinks
+    app.kubernetes.io/component: management
+    app.kubernetes.io/part-of: smartlinks
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  minReadySeconds: 5
+  progressDeadlineSeconds: 300
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: smartlinks
+      app.kubernetes.io/component: management
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: smartlinks
+        app.kubernetes.io/component: management
+        app.kubernetes.io/part-of: smartlinks
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-for-management-migrations
+          image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              until [ "$(
+                psql \
+                  --host=smartlinks-postgres \
+                  --port=5432 \
+                  --username="$POSTGRES_USER" \
+                  --dbname="$POSTGRES_DB" \
+                  --no-psqlrc \
+                  --tuples-only \
+                  --no-align \
+                  --set=ON_ERROR_STOP=1 \
+                  --command="
+                    SELECT
+                      EXISTS (
+                        SELECT 1
+                        FROM pg_extension
+                        WHERE extname = 'citext'
+                      )
+                      AND EXISTS (
+                        SELECT 1
+                        FROM \"__EFMigrationsHistory\"
+                        WHERE \"MigrationId\" = '20260826193536_InitialManagementSchema'
+                      );
+                  " \
+                  2>/dev/null
+              )" = "t" ]
+              do
+                echo "Waiting for Management database migrations"
+                sleep 2
+              done
+
+              echo "Management database migrations are ready"
+          envFrom:
+            - configMapRef:
+                name: smartlinks-postgres-config
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: smartlinks-runtime-secrets
+                  key: POSTGRES_PASSWORD
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            runAsUser: 70
+            runAsGroup: 70
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      containers:
+        - name: management
+          image: ghcr.io/in-digo/smartlinks-management-api:sha-fa40bf4afacd41954d942a4287244538737240bf
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              database_password="$(cat /var/run/secrets/smartlinks/postgres-password)"
+              api_key="$(cat /var/run/secrets/smartlinks/management-api-key)"
+
+              test -n "$database_password"
+              test -n "$api_key"
+
+              umask 077
+              printf '%s\n' \
+                "smartlinks-postgres:5432:${POSTGRES_DB}:${POSTGRES_USER}:${database_password}" \
+                > /tmp/pgpass
+
+              export Authentication__ApiKey="$api_key"
+
+              exec dotnet /app/SmartLinks.Management.Api.dll
+          envFrom:
+            - configMapRef:
+                name: smartlinks-postgres-config
+            - configMapRef:
+                name: smartlinks-management-config
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: http
+              scheme: HTTP
+            periodSeconds: 2
+            timeoutSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+              scheme: HTTP
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+              scheme: HTTP
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: temporary-files
+              mountPath: /tmp
+            - name: runtime-secrets
+              mountPath: /var/run/secrets/smartlinks
+              readOnly: true
+      volumes:
+        - name: temporary-files
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: runtime-secrets
+          secret:
+            secretName: smartlinks-runtime-secrets
+            defaultMode: 0444
+            items:
+              - key: POSTGRES_PASSWORD
+                path: postgres-password
+              - key: MANAGEMENT_API_KEY
+                path: management-api-key

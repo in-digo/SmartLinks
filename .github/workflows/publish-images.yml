@@ -1,0 +1,78 @@
+name: Publish container images
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - .config/dotnet-tools.json
+      - .github/workflows/publish-images.yml
+      - deploy/docker/SmartLinks.Management.Api.Dockerfile
+      - deploy/docker/SmartLinks.Redirect.Api.Dockerfile
+      - deploy/geoip/**
+      - src/**
+      - Directory.Build.props
+      - Directory.Packages.props
+      - global.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-container-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Publish ${{ matrix.imageName }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - imageName: smartlinks-management-api
+            dockerfile: deploy/docker/SmartLinks.Management.Api.Dockerfile
+          - imageName: smartlinks-redirect-api
+            dockerfile: deploy/docker/SmartLinks.Redirect.Api.Dockerfile
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: metadata
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.imageName }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-,format=long
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and publish image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          target: final
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.imageName }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.imageName }}

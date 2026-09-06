@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Include>[SmartLinks.*]*</Include>
+          <Exclude>[*.Tests]*</Exclude>
+          <ExcludeByFile>**/Persistence/Migrations/*.Designer.cs,**/Persistence/Migrations/*ModelSnapshot.cs</ExcludeByFile>
+          <DeterministicReport>true</DeterministicReport>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

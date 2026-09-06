@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: smartlinks
+  labels:
+    app.kubernetes.io/name: smartlinks
+    app.kubernetes.io/part-of: smartlinks

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Redirect\SmartLinks.Redirect.Api\SmartLinks.Redirect.Api.csproj" />
+    <ProjectReference Include="..\..\src\Redirect\SmartLinks.Redirect.Infrastructure\SmartLinks.Redirect.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\SmartLinks.Redirect.UnitTests\TestData\GeoIP2-Country-Test.mmdb" Link="TestData\GeoIP2-Country-Test.mmdb" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,109 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: smartlinks-redirect
+  labels:
+    app.kubernetes.io/name: smartlinks
+    app.kubernetes.io/component: redirect
+    app.kubernetes.io/part-of: smartlinks
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: smartlinks
+    app.kubernetes.io/component: redirect
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smartlinks-redirect
+  labels:
+    app.kubernetes.io/name: smartlinks
+    app.kubernetes.io/component: redirect
+    app.kubernetes.io/part-of: smartlinks
+spec:
+  replicas: 3
+  revisionHistoryLimit: 2
+  minReadySeconds: 5
+  progressDeadlineSeconds: 300
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: smartlinks
+      app.kubernetes.io/component: redirect
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: smartlinks
+        app.kubernetes.io/component: redirect
+        app.kubernetes.io/part-of: smartlinks
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redirect
+          image: ghcr.io/in-digo/smartlinks-redirect-api:sha-fa40bf4afacd41954d942a4287244538737240bf
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: smartlinks-redirect-config
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: http
+              scheme: HTTP
+            periodSeconds: 2
+            timeoutSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+              scheme: HTTP
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+              scheme: HTTP
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 384Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: temporary-files
+              mountPath: /tmp
+      volumes:
+        - name: temporary-files
+          emptyDir:
+            sizeLimit: 64Mi
