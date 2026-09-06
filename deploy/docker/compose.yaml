@@ -20,11 +20,11 @@ services:
     restart: unless-stopped
 
   management-migrations:
-    image: smartlinks-management-migrations:local
+    image: smartlinks-management-api:local
     build:
       context: ../..
       dockerfile: deploy/docker/SmartLinks.Management.Api.Dockerfile
-      target: migrations
+      target: final
     entrypoint:
       - /bin/sh
       - -ec

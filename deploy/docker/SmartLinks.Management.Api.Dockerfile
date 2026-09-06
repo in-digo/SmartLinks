@@ -36,12 +36,6 @@ RUN dotnet ef migrations bundle \
 FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET_ASPNET_TAG} AS runtime-base
 WORKDIR /app
 
-FROM runtime-base AS migrations
-COPY --from=migration-build /app/efbundle .
-
-USER ${APP_UID}
-ENTRYPOINT ["./efbundle", "--no-color"]
-
 FROM runtime-base AS api-runtime
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends curl \
@@ -52,6 +46,7 @@ ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
 
 COPY --from=build /app/publish .
+COPY --from=migration-build /app/efbundle .
 
 USER ${APP_UID}
 HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=12 \
