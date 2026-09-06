@@ -53,7 +53,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: management
-          image: ghcr.io/in-digo/smartlinks-management-api:sha-2bcdb890a225dff605ad65f6063dc83ddb103ac4
+          image: ghcr.io/in-digo/smartlinks-management-api:sha-fa40bf4afacd41954d942a4287244538737240bf
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -140,4 +140,3 @@ spec:
                 path: postgres-password
               - key: MANAGEMENT_API_KEY
                 path: management-api-key
-                

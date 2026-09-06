@@ -10,6 +10,8 @@ resources:
   - management-migrations.yaml
   - management.yaml
   - redirect.yaml
+  - issuer.yaml
+  - ingress.yaml
 
 secretGenerator:
   - name: smartlinks-runtime-secrets
