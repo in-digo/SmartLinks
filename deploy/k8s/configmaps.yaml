@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smartlinks-postgres-config
+  labels:
+    app.kubernetes.io/name: smartlinks
+    app.kubernetes.io/component: postgres
+    app.kubernetes.io/part-of: smartlinks
+data:
+  POSTGRES_DB: smartlinks
+  POSTGRES_USER: smartlinks
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smartlinks-management-config
+  labels:
+    app.kubernetes.io/name: smartlinks
+    app.kubernetes.io/component: management
+    app.kubernetes.io/part-of: smartlinks
+data:
+  ConnectionStrings__Management: "Host=smartlinks-postgres;Port=5432;Database=smartlinks;Username=smartlinks;Passfile=/tmp/pgpass"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smartlinks-redirect-config
+  labels:
+    app.kubernetes.io/name: smartlinks
+    app.kubernetes.io/component: redirect
+    app.kubernetes.io/part-of: smartlinks
+data:
+  ManagementApi__BaseAddress: "http://smartlinks-management:8080"
+  ConfigurationSynchronization__PollingInterval: "00:00:05"
+  ConfigurationSynchronization__ChangeBatchSize: "100"
+  ConfigurationSynchronization__InitialRetryDelay: "00:00:01"
+  ConfigurationSynchronization__MaximumRetryDelay: "00:00:30"
+  GeoIp__DatabasePath: "/var/lib/smartlinks/geoip/dbip-country-lite.mmdb"
+  ForwardedHeaders__KnownNetworks__0: "10.42.0.0/16"
+  

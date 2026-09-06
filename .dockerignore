@@ -13,3 +13,6 @@
 **/.env.*
 **/*.suo
 **/*.user
+!deploy/
+!deploy/geoip/
+!deploy/geoip/dbip-country-lite-2026-09.mmdb

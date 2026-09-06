@@ -28,6 +28,21 @@ RUN apt-get update \
     && apt-get install --yes --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
+LABEL com.difingo.smartlinks.geoip.provider="DB-IP" \
+      com.difingo.smartlinks.geoip.release="2026-09" \
+      com.difingo.smartlinks.geoip.license="CC-BY-4.0" \
+      com.difingo.smartlinks.geoip.source="https://db-ip.com/db/download/ip-to-country-lite"
+
+RUN install -d --mode=0755 /var/lib/smartlinks \
+    && install -d --mode=0755 /var/lib/smartlinks/geoip
+
+COPY --chmod=0444 deploy/geoip/dbip-country-lite-2026-09.mmdb /var/lib/smartlinks/geoip/dbip-country-lite.mmdb
+
+RUN printf '%s  %s\n' \
+        "385d4ab1e08417634a0a64921ac0e9c15c4c5e8a" \
+        "/var/lib/smartlinks/geoip/dbip-country-lite.mmdb" \
+    | sha1sum --check -
+
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
 

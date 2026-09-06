@@ -10,6 +10,7 @@ on:
       - .github/workflows/publish-images.yml
       - deploy/docker/SmartLinks.Management.Api.Dockerfile
       - deploy/docker/SmartLinks.Redirect.Api.Dockerfile
+      - deploy/geoip/**
       - src/**
       - Directory.Build.props
       - Directory.Packages.props
@@ -75,4 +76,3 @@ jobs:
           labels: ${{ steps.metadata.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.imageName }}
           cache-to: type=gha,mode=max,scope=${{ matrix.imageName }}
-          

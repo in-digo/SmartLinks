@@ -1,0 +1,119 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: smartlinks-management-migrations
+  labels:
+    app.kubernetes.io/name: smartlinks
+    app.kubernetes.io/component: management-migrations
+    app.kubernetes.io/part-of: smartlinks
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 300
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: smartlinks
+        app.kubernetes.io/component: management-migrations
+        app.kubernetes.io/part-of: smartlinks
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              until pg_isready \
+                --host=smartlinks-postgres \
+                --port=5432 \
+                --username="$POSTGRES_USER" \
+                --dbname="$POSTGRES_DB"
+              do
+                sleep 2
+              done
+          envFrom:
+            - configMapRef:
+                name: smartlinks-postgres-config
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 70
+            runAsGroup: 70
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: temporary-files
+              mountPath: /tmp
+      containers:
+        - name: migrations
+          image: ghcr.io/in-digo/smartlinks-management-api:sha-2bcdb890a225dff605ad65f6063dc83ddb103ac4
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              database_password="$(cat /var/run/secrets/smartlinks/postgres-password)"
+              test -n "$database_password"
+
+              umask 077
+              printf '%s\n' \
+                "smartlinks-postgres:5432:${POSTGRES_DB}:${POSTGRES_USER}:${database_password}" \
+                > /tmp/pgpass
+
+              exec /app/efbundle \
+                --no-color \
+                --connection "$ConnectionStrings__Management"
+          envFrom:
+            - configMapRef:
+                name: smartlinks-postgres-config
+            - configMapRef:
+                name: smartlinks-management-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: temporary-files
+              mountPath: /tmp
+            - name: runtime-secrets
+              mountPath: /var/run/secrets/smartlinks
+              readOnly: true
+      volumes:
+        - name: temporary-files
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: runtime-secrets
+          secret:
+            secretName: smartlinks-runtime-secrets
+            defaultMode: 0444
+            items:
+              - key: POSTGRES_PASSWORD
+                path: postgres-password
