@@ -22,7 +22,7 @@ flowchart LR
     configurator["Настройщик конфигурации<br/>[Person]"]
     visitor["Пользователь короткой ссылки<br/>[Person]"]
     smartLinks["SmartLinks<br/>[Software System]<br/>Управление правилами и выбор целевого URL"]
-    geoLite["GeoLite2 Country<br/>[External data source]<br/>База соответствия IP и страны"]
+    geoLite["DB-IP Country Lite<br/>[External data source]<br/>База соответствия IP и страны"]
 
     configurator -->|"Создание, изменение и публикация конфигураций по HTTPS"| smartLinks
     visitor -->|"GET /{slug}"| smartLinks
@@ -30,7 +30,7 @@ flowchart LR
     geoLite -.->|"Поставляется как локальный файл"| smartLinks
 ```
 
-GeoLite2 является внешним источником данных, но не сетевой зависимостью redirect-path. Redirect читает локальный файл базы.
+DB-IP Country Lite является внешним источником данных, но не сетевой зависимостью redirect-path. Redirect читает локальный MMDB-файл без запросов к DB-IP.
 
 ## 3. C4: Container
 
@@ -44,7 +44,7 @@ flowchart TB
         management["SmartLinks.Management.Api<br/>[Container: ASP.NET Core .NET 8]<br/>Write-side и публикация"]
         postgres[("PostgreSQL 16<br/>[Container: Database]<br/>Source of truth и change log")]
         redirect["SmartLinks.Redirect.Api<br/>[Container: ASP.NET Core .NET 8]<br/>2–3 read-side реплики"]
-        geoLite[("GeoLite2 Country<br/>[Container: File data store]<br/>Локальная GeoIP-база")]
+        geoLite[("DB-IP Country Lite<br/>[Container: File data store]<br/>Локальная GeoIP-база")]
     end
 
     configurator -->|"HTTPS, X-Api-Key для изменений"| ingress
@@ -64,7 +64,7 @@ flowchart TB
 | `SmartLinks.RuleEngine` | Компиляция DSL, построение контекста и выбор правила |
 | `SmartLinks.Contracts` | Контракты snapshot и change feed |
 | Traefik | TLS и внешняя маршрутизация в целевом K3s-развёртывании |
-| GeoLite2 Country | Локальное определение страны по IP |
+| DB-IP Country Lite | Локальное определение страны по IP |
 
 `SmartLinks.RuleEngine` и `SmartLinks.Contracts` являются общими библиотеками, а не отдельными C4-контейнерами.
 
@@ -174,7 +174,7 @@ sequenceDiagram
 
 `SmartLinkRedirectMiddleware` обрабатывает только одно-сегментные `GET /{slug}`. Маршруты `/health` и `/swagger` исключены. Поиск slug выполняется до построения контекста.
 
-Redirect-path использует только локальную память и локальный GeoLite2-файл. Запросов к Management, PostgreSQL и внешнему GeoIP API нет.
+Redirect-path использует только локальную память и локальный MMDB-файл DB-IP Country Lite. Запросов к Management, PostgreSQL и внешнему GeoIP API нет.
 
 ## 6. Проектные проблемы сложности и решения
 
